@@ -673,6 +673,10 @@
     vortexSprite.src='assets/red-vortex.png';
     const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
     const atlas=new Image();
+    let drawPlayerSprite=null;
+    atlas.addEventListener('load',()=>{
+      drawPlayerSprite=window.AyothayaPlayerSprite.create(atlas);
+    },{once:true});
     atlas.src='assets/sprites.png';
     const rangerSprite=new Image();
     rangerSprite.src='assets/ruins-ranger.png';
@@ -985,8 +989,11 @@
       else if(walking){ctx.rotate(Math.sin(phase*.5)*.031);}
       if(kind==='remote') ctx.filter='hue-rotate(63deg) saturate(.91)';
       if(action==='hit') ctx.filter='brightness(1.36) saturate(.74)';
+      const armedPlayer=type==='player'&&drawPlayerSprite;
       const npc=kind==='npc'?npcSprites[actor.id]:null;
-      if(npc?.image.complete && npc.image.naturalWidth>=(npc.column+1)*96 && npc.image.naturalHeight===96) {
+      if(armedPlayer) {
+        drawPlayerSprite(ctx,actor,{dir,bearing,walking:walking&&!dead,phase,progress:attack?progress:null,size:spriteSize});
+      } else if(npc?.image.complete && npc.image.naturalWidth>=(npc.column+1)*96 && npc.image.naturalHeight===96) {
         const size=Math.round(spriteSize);
         ctx.drawImage(npc.image,npc.column*96,0,96,96,-Math.round(size/2),-Math.round(86*size/96),size,size);
       } else if(type==='guardian' && guardianSprite) {
@@ -1014,7 +1021,7 @@
         ctx.drawImage(sprites.get(key),-w/2,-h,w,h);
       }
       ctx.restore();
-      if(attack) drawSlash(sx,sy-heightOnScreen*.49,bearing,progress,unit,kind,actor.attackStyle);
+      if(attack&&!armedPlayer) drawSlash(sx,sy-heightOnScreen*.49,bearing,progress,unit,kind,actor.attackStyle);
       if(cast&&!dead){
         ctx.strokeStyle='#c9eccb';
         ctx.lineWidth=1;

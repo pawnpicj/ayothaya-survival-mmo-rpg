@@ -6,7 +6,7 @@ import { networkInterfaces } from "node:os";
 const useLan = process.argv.includes("--lan");
 const port = Number(process.env.PORT ?? 4173);
 const host = useLan ? "0.0.0.0" : "127.0.0.1";
-const files = new Set(["index.html", "styles.css", "ui.js", "game.js", "world.js",
+const files = new Set(["index.html", "styles.css", "ui.js", "game.js", "player-sprite.js", "world.js",
   "preview.html", "preview.css", "preview-data.js", "preview-stage.js", "preview.js",
   "assets/tha-phraya.png", "assets/tha-phraya-east-gate.png", "assets/dong-chedi.png", "assets/player-anchor.png", "assets/sprites.png",
   "assets/ruins-ranger.png", "assets/village-npcs.png", "assets/village-bridge.png", "assets/red-vortex.png",
@@ -19,6 +19,7 @@ const players = new Map();
 const zoneWidths = new Map([["village", 2080], ["ruins", 1680]]);
 const directions = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
 const actions = new Set(["idle", "walk", "attack", "cast", "hit", "death"]);
+const weapons = new Set(["rusty_sword", "bronze_sword"]);
 
 function reply(response, status, message = "") {
   response.writeHead(status, { "Content-Type": "text/plain; charset=utf-8",
@@ -52,16 +53,16 @@ async function postPresence(request, response) {
   } catch {
     return reply(response, 400);
   }
-  const { id, x, y, zone, dir, action, moving, level } = position ?? {};
+  const { id, x, y, zone, dir, action, moving, level, weapon = "rusty_sword" } = position ?? {};
   if (typeof id !== "string" || !/^[a-f\d-]{32,36}$/i.test(id) ||
       !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > zoneWidths.get(zone) || y < 0 || y > 1120 ||
-      !zoneWidths.has(zone) || !directions.has(dir) || !actions.has(action) ||
+      !zoneWidths.has(zone) || !directions.has(dir) || !actions.has(action) || !weapons.has(weapon) ||
       typeof moving !== "boolean" || !Number.isSafeInteger(level) || level < 1 || level > 999) {
     return reply(response, 400);
   }
 
   if (!players.has(id) && players.size >= 50) return reply(response, 503);
-  players.set(id, { state: { id, x, y, zone, dir, action, moving, level,
+  players.set(id, { state: { id, x, y, zone, dir, action, moving, level, weapon,
     name: "นักเดินทาง " + id.slice(0, 4).toUpperCase() }, seen: Date.now() });
   reply(response, 204);
 }

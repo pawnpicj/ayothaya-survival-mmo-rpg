@@ -10,6 +10,11 @@
 
   const actors = [
     {
+      id: "one-handed-swordsman", name: "นักดาบมือเดียว", role: "ตัวละครชายในเกม", group: "player",
+      src: "assets/sprites.png", sheet: [384, 192], rect: [26, 13, 46, 73],
+      weapon: "rusty_sword", motions: ["idle", "walk", "attack"],
+    },
+    {
       id: "khram", name: "คราม", role: "นักดาบฝึกหัด", group: "player", style: "swordsman",
       rect: [123, 8, 490, 1004], height: 1, anchor: [0.60, 0.994],
       motions: ["idle", "walk", "attack", "cast", "hurt", "fall"],

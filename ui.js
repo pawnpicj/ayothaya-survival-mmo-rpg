@@ -401,12 +401,12 @@
     let sending = false;
     function sendPresence() {
       if (!connected || sending) return;
-      const { x, y, dir, moving, action, level } = state.player;
+      const { x, y, dir, moving, action, level, equipment } = state.player;
       sending = true;
       fetch("/api/presence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, x, y, zone: state.zone, dir, moving, action, level }),
+        body: JSON.stringify({ id, x, y, zone: state.zone, dir, moving, action, level, weapon: equipment.weapon }),
         signal: AbortSignal.timeout(4000),
       }).catch(() => {}).finally(() => { sending = false; });
     }

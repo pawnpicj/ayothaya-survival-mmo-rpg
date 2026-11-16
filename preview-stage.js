@@ -511,6 +511,17 @@
       const { x, y, width: imageWidth, height: imageHeight } = frame;
       drawFloorEffects(ctx, type, phase, x, groundY, imageHeight, traits);
       paintShadow(ctx, x, groundY, imageWidth, imageHeight, (y - groundY) / imageHeight, palette, type, phase);
+      if (actor.weapon) {
+        const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.imageSmoothingEnabled = false;
+        drawPlayer(ctx, actor, { dir: type === 'idle' ? 's' : 'se', bearing: Math.PI / 4,
+          walking: type === 'walk', phase: phase * TAU * 2,
+          progress: type === 'attack' ? phase : null, size: imageHeight * 96 / artHeight });
+        ctx.restore();
+        return;
+      }
       paintActor(ctx, record.image, actor, { ...frame, pose, type, phase, traits });
       drawAirEffects(ctx, type, phase, x, y, imageHeight, actor, traits, width);
     }
