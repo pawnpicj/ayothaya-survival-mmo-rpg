@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#15221b">
+  <title>Animation Preview · Ayothaya Survival</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2324352b' stroke='%23e5bf7b' d='M12 1 23 12 12 23 1 12Z'/%3E%3Cpath fill='none' stroke='%23ffe3a7' d='m9 12 3-6 3 6M8 15l2-3h4l2 3M7 18v-3h10v3z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="preview.css">
+  <script src="preview-data.js" defer></script>
+  <script src="preview-stage.js" defer></script>
+  <script src="preview.js" defer></script>
+</head>
+<body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="pv-temple" viewBox="0 0 24 24"><path d="M3 21h18M5 18h14v3H5zM7 18v-3h10v3M5 15l3-3h8l3 3M9 12V9h6v3M10 9l2-5 2 5M12 4V2"/></symbol>
+    <symbol id="pv-back" viewBox="0 0 24 24"><path d="m11 5-7 7 7 7M4 12h16"/></symbol>
+    <symbol id="pv-player" viewBox="0 0 24 24"><circle cx="12" cy="6.5" r="3.5"/><path d="M5 21v-2.5a7 7 0 0 1 14 0V21M9 17l3 3 3-3"/></symbol>
+    <symbol id="pv-npc" viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3v4l5-4h8a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z"/><path d="M8 10.5h.01m4 0h.01m4 0h.01"/></symbol>
+    <symbol id="pv-monster" viewBox="0 0 24 24"><path d="M6 7C4 6 3 4 3 2c4 1 5 3 5 4m8 0c0-1 1-3 5-4 0 2-1 4-3 5m3 6a9 8 0 1 1-18 0 9 8 0 0 1 18 0Z"/><path d="m7.5 11.5 2 1m7-1-2 1m-4 4h3"/></symbol>
+    <symbol id="pv-play" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="pv-pause" viewBox="0 0 24 24"><path d="M7 5h3v14H7zm7 0h3v14h-3z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="pv-replay" viewBox="0 0 24 24"><path d="M5 9a8 8 0 1 1-1 7M5 3v6h6"/></symbol>
+    <symbol id="pv-step-back" viewBox="0 0 24 24"><path d="M18 6 9 12l9 6ZM6 6v12"/></symbol>
+    <symbol id="pv-step-next" viewBox="0 0 24 24"><path d="m6 6 9 6-9 6ZM18 6v12"/></symbol>
+    <symbol id="pv-dark" viewBox="0 0 24 24"><path d="M20 15A8.5 8.5 0 0 1 9 4a8.5 8.5 0 1 0 11 11Z"/></symbol>
+    <symbol id="pv-light" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/></symbol>
+    <symbol id="pv-zoom" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15 15 6 6M7.5 10.5h6m-3-3v6"/></symbol>
+  </svg>
+
+  <header class="site-bar">
+    <div class="page-width site-bar-inner">
+      <div class="site-brand" aria-label="Ayothaya Survival">
+        <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#pv-temple"></use></svg></span>
+        <span class="brand-wordmark"><b lang="en">Ayothaya</b><span lang="en">Survival</span></span>
+      </div>
+      <a class="return-link" href="index.html"><svg class="icon" aria-hidden="true"><use href="#pv-back"></use></svg> กลับเข้าเกม</a>
+    </div>
+  </header>
+
+  <main class="page-width preview-page">
+    <div class="page-heading">
+      <h1 lang="en">Animation Preview</h1>
+      <p class="preview-note">ภาพคอนเซ็ปต์มุมเดียว · แอนิเมชันทดลอง</p>
+    </div>
+
+    <div class="workbench">
+      <aside class="catalog panel" aria-labelledby="catalog-heading">
+        <div class="catalog-heading">
+          <h2 id="catalog-heading">คลังตัวละคร</h2>
+          <span id="actor-count" class="actor-count"></span>
+        </div>
+        <div class="group-choices" role="group" aria-label="ประเภทตัวละคร">
+          <button type="button" data-group="player" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#pv-player"></use></svg> ผู้เล่น</button>
+          <button type="button" data-group="npc" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#pv-npc"></use></svg> NPC</button>
+          <button type="button" data-group="monster" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#pv-monster"></use></svg> มอนสเตอร์</button>
+        </div>
+        <div id="actor-list" class="actor-list" role="group" aria-label="เลือกตัวละคร"></div>
+      </aside>
+
+      <section class="viewer panel" aria-labelledby="actor-name">
+        <header class="viewer-head">
+          <div class="actor-heading">
+            <h2 id="actor-name"></h2>
+            <span id="actor-role"></span>
+          </div>
+          <div class="stage-controls">
+            <div class="ground-choices" role="group" aria-label="สีพื้นหลังเวที">
+              <button type="button" data-ground="dark" aria-pressed="true" aria-label="โหมดพื้นเข้ม" title="พื้นเข้ม"><svg class="icon" aria-hidden="true"><use href="#pv-dark"></use></svg></button>
+              <button type="button" data-ground="light" aria-pressed="false" aria-label="โหมดพื้นสว่าง" title="พื้นสว่าง"><svg class="icon" aria-hidden="true"><use href="#pv-light"></use></svg></button>
+            </div>
+            <label class="control-select zoom-control" title="ซูม">
+              <svg class="icon" aria-hidden="true"><use href="#pv-zoom"></use></svg>
+              <span class="sr-only">ซูม</span>
+              <select id="zoom" aria-label="ซูม">
+                <option value=".8">80%</option>
+                <option value="1" selected>100%</option>
+                <option value="1.3">130%</option>
+              </select>
+            </label>
+          </div>
+        </header>
+
+        <div id="stage" class="stage">
+          <canvas id="preview-canvas" role="img" aria-label="เวทีพรีวิวแอนิเมชันตัวละคร">เบราว์เซอร์นี้ไม่รองรับ Canvas</canvas>
+        </div>
+
+        <div class="viewer-controls">
+          <div class="playback">
+            <div class="transport">
+              <button class="play-toggle" id="play-toggle" type="button">
+                <svg class="icon when-paused" aria-hidden="true"><use href="#pv-play"></use></svg>
+                <svg class="icon when-playing" aria-hidden="true"><use href="#pv-pause"></use></svg>
+                <span id="play-label">เล่น</span>
+              </button>
+              <button class="icon-button" id="replay" type="button" aria-label="เล่นใหม่ตั้งแต่ต้น" title="เล่นใหม่ตั้งแต่ต้น"><svg class="icon" aria-hidden="true"><use href="#pv-replay"></use></svg></button>
+              <button class="icon-button frame-button" id="step-back" type="button" aria-label="ถอยหนึ่งเฟรม" title="ถอยหนึ่งเฟรม"><svg class="icon" aria-hidden="true"><use href="#pv-step-back"></use></svg></button>
+              <button class="icon-button frame-button" id="step-next" type="button" aria-label="ไปข้างหน้าหนึ่งเฟรม" title="ไปข้างหน้าหนึ่งเฟรม"><svg class="icon" aria-hidden="true"><use href="#pv-step-next"></use></svg></button>
+            </div>
+            <div class="scrubber">
+              <input type="range" id="timeline" min="0" max="1000" value="0" aria-label="ตำแหน่งในแอนิเมชัน">
+              <output class="time" for="timeline" aria-live="off"><span id="time-readout">0.00</span><span aria-hidden="true"> / </span><span id="duration-readout">0.00</span></output>
+            </div>
+            <label class="control-select speed-control"><span>ความเร็ว</span>
+              <select id="playback-speed" aria-label="ความเร็ว" title="ความเร็ว">
+                <option value=".5">0.5×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.5">1.5×</option>
+                <option value="2">2×</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="animation-panel">
+            <div class="animation-body">
+              <h3 id="animation-heading">เลือกท่าทาง</h3>
+              <div id="animation-list" class="animation-list" role="group" aria-labelledby="animation-heading"></div>
+            </div>
+            <div class="animation-details">
+              <strong id="animation-name"></strong>
+              <span id="animation-description"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <noscript><p class="panel noscript">เปิด JavaScript ในเบราว์เซอร์เพื่อดูแอนิเมชัน</p></noscript>
+  </main>
+</body>
+</html>
+

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17231d">
+  <title>Ayothaya Survival</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2324352b' stroke='%23e5bf7b' d='M12 1 23 12 12 23 1 12Z'/%3E%3Cpath fill='none' stroke='%23ffe3a7' d='m9 12 3-6 3 6M8 15l2-3h4l2 3M7 18v-3h10v3z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script src="game.js" defer></script>
+  <script src="preview-data.js" defer></script>
+  <script src="world.js" defer></script>
+  <script src="ui.js" defer></script>
+</head>
+<body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-temple" viewBox="0 0 24 24"><path d="M3 21h18M5 18h14v3H5zM7 18v-3h10v3M5 15l3-3h8l3 3M9 12V9h6v3M10 9l2-5 2 5M12 4V2"/></symbol>
+    <symbol id="i-coin" viewBox="0 0 24 24"><path d="M12 2.5 21.5 12 12 21.5 2.5 12zM12 7.5 16.5 12 12 16.5 7.5 12z"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="m9 6-2-4h10l-2 4m-6 0h6m-6 0c-1.9 1.6-5 4.8-5 9.7S8 21 12 21s8-.4 8-5.3-3.1-8.1-5-9.7m-3 5v5m-2-2.5h4"/></symbol>
+    <symbol id="i-quest" viewBox="0 0 24 24"><path d="M6 3h13a2 2 0 0 1 2 2v2h-4V5a2 2 0 0 1 2-2M6 3a2 2 0 0 0-2 2v13m9 2h2a2 2 0 0 0 2-2V7M4 18H2a2 2 0 0 0 2 2h9a2 2 0 0 1-2-2H4m4-9h5m-5 4h5"/></symbol>
+    <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 21v-2.5a7 7 0 0 1 14 0V21"/></symbol>
+    <symbol id="i-fullscreen" viewBox="0 0 24 24"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.6 2.6 0 1 1 4.1 2.1c-1.2.9-1.6 1.4-1.6 2.9m0 3h.01"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" fill="#263b2d"/><circle cx="15" cy="12" r="2" fill="#263b2d"/><circle cx="10" cy="18" r="2" fill="#263b2d"/></symbol>
+    <symbol id="i-preview" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></symbol>
+    <symbol id="i-blade" viewBox="0 0 24 24"><path d="m4 20 4-4m-2-2 4 4m-2-2c5-3 9.8-6.2 13-13-6.8 3.2-10 8-13 13Z"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M13 2c1 5-5 6-5 11-2-1-2.5-2.5-2.5-3.5C2 14 4.8 21 12 21c6 0 9.5-5.7 6-10-1 2-2 2-2 2s1-6-3-11Z"/><path d="M12 21c-4-2-2-5-1-6 0 2 2 2 2 2s1 2-1 4Z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2.5 20 6v7c0 4.3-5.8 7.7-8 8.5-2.2-.8-8-4.2-8-8.5V6l8-3.5zM12 8v9m-4.5-4.5h9"/></symbol>
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20.5 3.5C16 4 8 4 5 9.5c-2 3.8.1 7.3 3.2 8.1 4.6 1.4 9.8-2.2 12.3-14.1ZM3.5 21c3.3-4.7 6.8-7.4 11.5-11"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.5c1 6.1 3.5 8.7 9.5 9.5-6.1 1-8.7 3.5-9.5 9.5-1-6.1-3.5-8.7-9.5-9.5 6.1-1 8.7-3.5 9.5-9.5ZM19 3v4m-2-2h4"/></symbol>
+    <symbol id="i-swords" viewBox="0 0 24 24"><path d="m4 20 4-4m-2-2 4 4m-2-2L20 4v4l-7.5 7.5M20 20l-4-4m2-2-4 4m2-2L4 4v4l5 5"/></symbol>
+    <symbol id="i-talk" viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3v4l5-4h8a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z"/><path d="M7.5 10.5h.01m4.49 0h.01m4.5 0h.01"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><path d="m5 2 13 11.5-6 .5-3 6.5z"/></symbol>
+  </svg>
+
+  <main class="game" id="game">
+    <canvas id="world" aria-label="ฉากเกมอโยธยา"></canvas>
+    <div class="scene-vignette" aria-hidden="true"></div>
+
+    <aside class="scouting" aria-label="แผนที่และภารกิจ">
+      <div class="brand" aria-label="Ayothaya Survival">
+        <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-temple"></use></svg></span>
+        <div class="brand-type"><strong>Ayothaya</strong><span>Survival</span></div>
+      </div>
+
+      <section class="minimap panel" aria-label="แผนที่ย่อ">
+        <div class="minimap-viewport">
+          <canvas id="minimap" width="205" height="110" aria-hidden="true"></canvas>
+          <span class="map-compass" aria-hidden="true"><svg class="icon"><use href="#i-compass"></use></svg></span>
+        </div>
+        <div class="map-caption">
+          <div><h1 id="zone-name">บ้านท่ามะขาม</h1><span id="zone-range" class="zone-range">เขตชานพระนคร</span></div>
+          <span id="map-coords" class="map-coords" aria-label="พิกัด"></span>
+        </div>
+      </section>
+
+      <button type="button" class="quest-tracker panel" data-action="quests" aria-label="เปิดสมุดภารกิจ">
+        <span class="quest-heading"><svg class="icon"><use href="#i-quest"></use></svg> ภารกิจติดตาม <svg class="icon quest-arrow"><use href="#i-chevron"></use></svg></span>
+        <strong id="quest-title">เฝ้าท่ามะขาม</strong>
+        <span class="quest-detail"><span id="quest-objective">ไปพบลุงขาม</span><span id="quest-count"></span></span>
+      </button>
+    </aside>
+
+    <nav class="toolbar" aria-label="เมนูเกม">
+      <div class="currency panel" aria-label="เบี้ยที่มี">
+        <svg class="icon" aria-hidden="true"><use href="#i-coin"></use></svg>
+        <strong id="gold">0</strong><span>เบี้ย</span>
+      </div>
+      <button type="button" class="menu-button panel" data-action="inventory" title="กระเป๋า (V)" aria-label="กระเป๋า (V)">
+        <svg class="icon" aria-hidden="true"><use href="#i-bag"></use></svg><kbd>V</kbd>
+      </button>
+      <button type="button" class="menu-button panel" data-action="quests" title="สมุดภารกิจ (C)" aria-label="สมุดภารกิจ (C)">
+        <svg class="icon" aria-hidden="true"><use href="#i-quest"></use></svg><kbd>C</kbd>
+      </button>
+      <button type="button" class="menu-button panel" data-action="character" title="ตัวละคร (B)" aria-label="ตัวละคร (B)">
+        <svg class="icon" aria-hidden="true"><use href="#i-person"></use></svg><kbd>B</kbd>
+      </button>
+      <button type="button" class="menu-button panel" data-action="fullscreen" title="เต็มจอ (F11)" aria-label="เต็มจอ (F11)">
+        <svg class="icon" aria-hidden="true"><use href="#i-fullscreen"></use></svg><kbd>F11</kbd>
+      </button>
+      <button type="button" class="menu-button panel" data-action="help" title="วิธีเล่น" aria-label="วิธีเล่น">
+        <svg class="icon" aria-hidden="true"><use href="#i-help"></use></svg>
+      </button>
+      <a class="menu-button panel" href="preview.html" title="พรีวิวแอนิเมชัน" aria-label="พรีวิวแอนิเมชัน">
+        <svg class="icon" aria-hidden="true"><use href="#i-preview"></use></svg>
+      </a>
+      <span id="network" class="network"><span class="network-lamp" aria-hidden="true"></span><span id="network-label">เล่นคนเดียว</span></span>
+    </nav>
+
+    <div class="auto-controls panel" role="group" aria-label="เล่นอัตโนมัติ">
+      <button id="auto-toggle" type="button" data-action="auto-toggle" aria-label="เปิดหรือปิด Auto" aria-pressed="false">
+        <span>Auto</span><strong id="auto-state">ปิด</strong>
+      </button>
+      <button type="button" data-action="auto-settings" aria-label="ตั้งค่า Auto" title="ตั้งค่า Auto">
+        <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+      </button>
+    </div>
+
+    <section class="target panel" id="target" aria-label="เป้าหมายที่เลือก" hidden>
+      <div class="target-label"><strong id="target-name"></strong><span id="target-level"></span></div>
+      <button type="button" class="icon-button clear-target" data-action="clear-target" aria-label="ยกเลิกเป้าหมาย" title="ยกเลิกเป้าหมาย">
+        <svg class="icon"><use href="#i-close"></use></svg>
+      </button>
+      <div class="meter meter-hp"><span id="target-hp-fill" class="meter-fill"></span><span id="target-hp-text" class="meter-text"></span></div>
+    </section>
+
+    <p id="interaction-hint" class="interaction-hint panel" hidden></p>
+    <div id="toast" class="toast panel" role="status" aria-live="polite" hidden></div>
+
+    <div class="controls">
+      <div class="character-widget">
+        <section class="status panel" aria-label="สถานะตัวละคร">
+          <button type="button" class="portrait" data-action="character" title="ตัวละคร (B)" aria-label="เปิดหน้าตัวละคร">
+            <span class="portrait-art" aria-hidden="true"></span>
+            <span class="level-chip">Lv. <span id="base-level">1</span></span>
+          </button>
+          <div class="status-info">
+            <div class="player-stats"><strong id="player-name">นักเดินทาง</strong><span>Job <b id="job-level">1</b></span></div>
+            <div id="player-job" class="player-job">นักดาบฝึกหัด</div>
+            <div class="meter meter-hp" aria-label="พลังชีวิต"><span id="hp-fill" class="meter-fill"></span><span id="hp-text" class="meter-text">100 / 100</span></div>
+            <div class="meter meter-sp" aria-label="มานา"><span id="sp-fill" class="meter-fill"></span><span id="sp-text" class="meter-text">50 / 50</span></div>
+            <div class="meter meter-xp" aria-label="ค่าประสบการณ์"><span id="xp-fill" class="meter-fill"></span><span id="xp-text" class="meter-text">0 / 50</span></div>
+          </div>
+        </section>
+        <span class="movement-tip"><svg class="icon"><use href="#i-cursor"></use></svg> คลิกเพื่อเดิน <span>·</span> WASD</span>
+      </div>
+
+      <section class="skill-dock" aria-label="สกิล">
+        <button type="button" class="skill style-blade panel" data-skill="1" title="ฟันหนัก (1)"><kbd>1</kbd><span class="skill-cooldown" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="#i-blade"></use></svg><span class="skill-label">ฟันหนัก</span></button>
+        <button type="button" class="skill style-flame panel" data-skill="2" title="กวาดดาบ (2)"><kbd>2</kbd><span class="skill-cooldown" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="#i-flame"></use></svg><span class="skill-label">กวาดดาบ</span></button>
+        <button type="button" class="skill style-shield panel" data-skill="3" title="ตั้งรับ (3)"><kbd>3</kbd><span class="skill-cooldown" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg><span class="skill-label">ตั้งรับ</span></button>
+        <button type="button" class="skill style-leaf panel" data-skill="4" title="สมานแผล (4)"><kbd>4</kbd><span class="skill-cooldown" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="#i-leaf"></use></svg><span class="skill-label">สมานแผล</span></button>
+        <button type="button" class="skill style-star panel" data-skill="5" title="พุ่งตัด (5)"><kbd>5</kbd><span class="skill-cooldown" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="#i-star"></use></svg><span class="skill-label">พุ่งตัด</span></button>
+      </section>
+
+      <section class="actions" aria-label="คำสั่ง">
+        <button type="button" class="action-button attack-button" data-action="attack" title="โจมตี (Space)">
+          <kbd>SPACE</kbd><svg class="icon" aria-hidden="true"><use href="#i-swords"></use></svg><span>โจมตี</span>
+        </button>
+        <button type="button" class="action-button talk-button" data-action="talk" title="พูดคุย (F)">
+          <kbd>F</kbd><svg class="icon" aria-hidden="true"><use href="#i-talk"></use></svg><span>พูดคุย</span>
+        </button>
+      </section>
+    </div>
+
+    <dialog id="dialog" aria-labelledby="dialog-title" class="dialog panel">
+      <div class="dialog-heading">
+        <h2 id="dialog-title"></h2>
+        <button type="button" class="icon-button" id="dialog-close" data-action="close" title="ปิด (Esc)" aria-label="ปิด">
+          <svg class="icon"><use href="#i-close"></use></svg>
+        </button>
+      </div>
+      <div id="dialog-content" class="dialog-content"></div>
+    </dialog>
+    <noscript><p class="noscript panel">เปิด JavaScript เพื่อเข้าสู่เกม Ayothaya Survival</p></noscript>
+  </main>
+</body>
+</html>
