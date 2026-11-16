@@ -10,6 +10,15 @@
   const directions={e:[1,0],se:[1,1],s:[0,1],sw:[-1,1],w:[-1,0],nw:[-1,-1],n:[0,-1],ne:[1,-1]};
   const strikePhase=window.AyothayaGame.strikePhase;
   const ease=t=>t*t*(3-2*t);
+  const skillEffects = {
+    heavy: { duration: .32, colors: ['#ffa735', '#fff3b3'] },
+    sweep: { duration: .42, colors: ['#e77130', '#ffe0a0'] },
+    guard: { duration: .50, colors: ['#4edcca', '#d7fff3'] },
+    heal: { duration: .75, colors: ['#83e16e', '#eaffb8'] },
+    dash: { duration: .36, colors: ['#7d9eff', '#e2faff'] },
+    thrust: { duration: .29, colors: ['#57c5ff', '#e4fbff'] },
+    interrupt: { duration: .36, colors: ['#ff7868', '#ffdfad'] },
+  };
 
   function attackWeight(progress) {
     const windUp=.23;
@@ -672,6 +681,7 @@
     const vortexSprite=new Image();
     vortexSprite.src='assets/red-vortex.png';
     const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+    const activeEffects = [];
     const atlas=new Image();
     let drawPlayerSprite=null;
     atlas.addEventListener('load',()=>{
@@ -975,6 +985,7 @@
         ctx.stroke();
       }
       shadow(sx,sy,Math.max(7,radius*.84),Math.max(2,4*scale));
+      if (kind === 'player' && !dead && actor.guardTime > 0) drawGuard(actor, time, unit);
       const bounce=dead?0:attack?Math.max(0,swing)*unit*(kind==='enemy'?7:3)
         :walking?Math.abs(Math.sin(phase))*2.8*scale:Math.sin(time*2.8+actor.x)*scale*.95;
       ctx.save();
@@ -1022,7 +1033,7 @@
       }
       ctx.restore();
       if(attack&&!armedPlayer) drawSlash(sx,sy-heightOnScreen*.49,bearing,progress,unit,kind,actor.attackStyle);
-      if(cast&&!dead){
+      if(cast&&!dead&&kind!=='player'){
         ctx.strokeStyle='#c9eccb';
         ctx.lineWidth=1;
         ctx.beginPath();ctx.ellipse(sx,sy+1,22*scale,8*scale,0,0,TAU);ctx.stroke();
@@ -1088,6 +1099,156 @@
         }
       }
       ctx.restore();
+    }
+
+    function playSkillEffect(event) {
+      const impact = event.type === 'damage';
+      const skill = event.guarded ? 'guard' : event.skill;
+      const visual = skillEffects[skill];
+      if (!visual || (event.type === 'skill' && !['guard', 'heal'].includes(skill))) return;
+      activeEffects.push({ ...event, skill, colors: visual.colors, start: performance.now() / 1000,
+        duration: impact ? .30 : visual.duration });
+    }
+
+    function effectRing(x, y, radius, angle, span, colors, unit) {
+      ctx.beginPath();
+      for (let index = 0; index <= 28; index++) {
+        const theta = angle + span * index / 28;
+        const [sx, sy] = project(x + radius * Math.cos(theta), y + radius * Math.sin(theta), 2);
+        if (index === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.strokeStyle = colors[0];
+      ctx.lineWidth = Math.max(1, 4 * unit);
+      ctx.stroke();
+      ctx.strokeStyle = colors[1];
+      ctx.lineWidth = Math.max(.9, 1.25 * unit);
+      ctx.stroke();
+    }
+
+    function drawGuard(actor, time, unit) {
+      const colors = skillEffects.guard.colors;
+      const pulse = reducedMotion.matches ? .65 : .63 + .13 * Math.sin(time * 4);
+      const [x, y] = project(actor.x, actor.y, 20);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, actor.guardTime * 3) * pulse;
+      effectRing(actor.x, actor.y, 33, 0, TAU, colors, unit * .72);
+      ctx.strokeStyle = colors[1];
+      ctx.lineWidth = 1.8 * unit;
+      for (const angle of [0, Math.PI]) {
+        ctx.beginPath();
+        ctx.ellipse(x, y, 27 * unit, 28 * unit, 0, angle - .66, angle + .66);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function crescent(point, bearing, unit, colors) {
+      ctx.save();
+      ctx.translate(...point);
+      ctx.rotate(bearing);
+      ctx.scale(unit, unit);
+      ctx.beginPath();
+      ctx.moveTo(13, -30);
+      ctx.quadraticCurveTo(73, -3, 28, 30);
+      ctx.quadraticCurveTo(43, 3, 13, -30);
+      ctx.fillStyle = colors[0];
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(26, -22);
+      ctx.quadraticCurveTo(62, -2, 36, 22);
+      ctx.strokeStyle = colors[1];
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function bladeStreak(from, to, thickness, colors) {
+      const dx = to[0] - from[0], dy = to[1] - from[1];
+      const length = Math.hypot(dx, dy);
+      if (length < 1) return;
+      ctx.save();
+      ctx.translate(...from);
+      ctx.rotate(Math.atan2(dy, dx));
+      poly(ctx, [[0, 0], [length * .65, -thickness], [length, 0], [length * .65, thickness]], colors[0]);
+      poly(ctx, [[length * .18, 0], [length * .71, -thickness * .34], [length, 0],
+        [length * .71, thickness * .34]], colors[1]);
+      ctx.restore();
+    }
+
+    function drawSkillEffects(player, time) {
+      if (!activeEffects.length) return;
+      const unit = sceneMode ? scene.h / 510 : clamp(zoom, .6, 2.4);
+      const still = reducedMotion.matches;
+      for (let index = activeEffects.length - 1; index >= 0; index--) {
+        const effect = activeEffects[index];
+        const age = Math.max(0, time - effect.start) / effect.duration;
+        if (age >= 1) {
+          activeEffects.splice(index, 1);
+          continue;
+        }
+        const motion = still ? .38 : age;
+        const { skill, colors } = effect;
+        ctx.save();
+        ctx.globalAlpha = (1 - age) ** .8;
+        if (effect.type === 'damage') {
+          const [x, y] = project(effect.x, effect.y, effect.guarded ? 26 : 17);
+          const reach = (11 + 35 * motion) * unit;
+          ctx.translate(x, y);
+          for (let spark = 0; spark < (still ? 4 : 7); spark++) {
+            const angle = spark * 2.4;
+            const extent = reach * (.55 + (spark % 3) * .21);
+            const tip = [Math.cos(angle) * extent, Math.sin(angle) * extent];
+            bladeStreak(tip.map(axis => axis * .43), tip, (effect.critical ? 3 : 2) * unit, colors);
+          }
+        } else if (skill === 'guard' || skill === 'heal') {
+          const { x, y } = player;
+          const healing = skill === 'heal';
+          effectRing(x, y, (healing ? 21 : 27) + 27 * motion, 0, TAU, colors, unit);
+          if (healing) {
+            for (let leaf = 0; leaf < (still ? 4 : 8); leaf++) {
+              const angle = leaf * 2.4 + motion * 2;
+              const radius = 17 + (leaf % 3) * 7;
+              const [sx, sy] = project(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius,
+                12 + (leaf % 4) * 7 + 27 * motion);
+              const size = (3.5 + (leaf % 2) * 1.5) * unit;
+              poly(ctx, [[sx - size, sy + size], [sx - size * .5, sy - size * .4], [sx + size, sy - size],
+                [sx + size * .45, sy + size * .45]], colors[leaf % 2]);
+            }
+          }
+        } else if (skill === 'sweep') {
+          const { x, y } = effect.origin;
+          const radius = effect.range * (.44 + .60 * ease(motion));
+          const turn = motion * Math.PI * 1.4;
+          effectRing(x, y, radius, turn, TAU * .42, colors, unit);
+          effectRing(x, y, radius, turn + Math.PI, TAU * .42, colors, unit);
+        } else {
+          const { origin, arrival, contact, range, dir } = effect;
+          const [dx, dy] = directions[dir] || directions.s;
+          const [x, y] = project(origin.x, origin.y, 22);
+          const [facingX, facingY] = project(origin.x + dx * 24, origin.y + dy * 24, 22);
+          const aim = contact ? project(contact.x, contact.y, 19) :
+            project(origin.x + dx * range / Math.hypot(dx, dy), origin.y + dy * range / Math.hypot(dx, dy), 22);
+          const bearing = Math.hypot(aim[0] - x, aim[1] - y) > 3 ? Math.atan2(aim[1] - y, aim[0] - x)
+            : Math.atan2(facingY - y, facingX - x);
+          if (skill === 'thrust') {
+            bladeStreak([x, y], aim, (9 - 5 * motion) * unit, colors);
+          } else if (skill === 'dash') {
+            const end = project(arrival.x, arrival.y, 22);
+            bladeStreak([x, y], end, (14 - 8 * motion) * unit, colors);
+            crescent(end, bearing + .2, unit * .82, colors);
+          } else if (skill === 'interrupt') {
+            const [cx, cy] = contact ? aim : [x + Math.cos(bearing) * 35 * unit, y + Math.sin(bearing) * 35 * unit];
+            for (const slope of [-1, 1]) {
+              const reach = (13 + 11 * motion) * unit;
+              bladeStreak([cx - reach, cy - slope * reach], [cx + reach, cy + slope * reach], 6 * unit, colors);
+            }
+          } else {
+            crescent([x, y], bearing - .38 + motion * .75, unit * (1 + motion * .3), colors);
+          }
+        }
+        ctx.restore();
+      }
     }
 
     function drawTree(object,sx,sy) {
@@ -1182,6 +1343,7 @@
         else if(entity.type==='tree'||entity.type==='shrub') drawTree(entity,x,y);
         else models.place(entity,time);
       }
+      drawSkillEffects(state.player, time);
       embers(time,ruins);
       lastTime=time;
       lastState=state;
@@ -1248,7 +1410,8 @@
     }
 
     return {
-      draw,hit,screenPoint,drawMinimap,relativeAxis,
+      draw,hit,screenPoint,drawMinimap,relativeAxis,playSkillEffect,
+      clearSkillEffects(){activeEffects.length=0;},
       zoomBy(factor){camera.zoom=clamp(camera.zoom*factor,1,1.83);},
       resetCamera(){camera.zoom=1;camera.yaw=BASE_YAW;}
     };

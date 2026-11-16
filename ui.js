@@ -20,6 +20,8 @@
   let peers = [];
   let portraitTime = 0;
   let lastRender = 0;
+  let skillTab = "active";
+  let selectedSlot = 1;
 
   const text = (id, value) => {
     const element = $(id);
@@ -48,6 +50,7 @@
   };
   const itemIcons = { potion: "leaf", elixir: "flame", sword: "blade", seed: "leaf",
     claw: "swords", dust: "star", card: "quest", seal: "shield" };
+  const skillIcon = (name) => '<svg class="icon" aria-hidden="true"><use href="#i-' + name + '"></use></svg>';
 
   function renderHUD() {
     const { player, quest, zoneInfo } = state;
@@ -84,21 +87,26 @@
       fill("target-hp-fill", enemy.hp, enemy.maxHp);
     }
 
-    skillButtons.forEach((button, slot) => {
-      const skill = state.skills[slot];
-      if (!skill) return;
-      const remaining = Math.max(0, skill.remaining || 0);
-      button.classList.toggle("on-cooldown", remaining > 0);
-      button.classList.toggle("low-mana", skill.cost > player.mp);
-      button.title = skill.name + " · " + skill.cost + " มานา\n" + skill.description;
-      const name = button.querySelector(".skill-label");
-      if (name && name.textContent !== skill.name) name.textContent = skill.name;
-      const shade = button.querySelector(".skill-cooldown");
-      if (shade) {
-        shade.style.setProperty("--cooldown", 100 * Math.min(1, remaining / (skill.cooldown || 1)) + "%");
-        shade.textContent = remaining ? remaining.toFixed(remaining < 1 ? 1 : 0) : "";
-        shade.hidden = remaining <= 0;
+    skillButtons.forEach((button, index) => {
+      const slot = index + 1;
+      const skill = game.getSlotSkill(slot);
+      const remaining = skill?.remaining ?? 0;
+      const name = skill?.name ?? "ว่าง";
+      const binding = skill?.id ?? "";
+      if (button.dataset.binding !== binding) {
+        button.dataset.binding = binding;
+        button.className = "skill panel style-" + (skill?.icon ?? "empty");
+        button.title = skill ? name + " · " + skill.cost + " มานา\n" + skill.description : "ช่องว่าง · คลิกเพื่อจัดสกิล";
+        button.setAttribute("aria-label", "ช่อง " + slot + " " + (skill ? name : "ว่าง เปิดหน้าต่างสกิล"));
+        button.querySelector("use").setAttribute("href", "#i-" + (skill?.icon ?? "plus"));
+        button.querySelector(".skill-label").textContent = name;
       }
+      button.classList.toggle("on-cooldown", remaining > 0);
+      button.classList.toggle("low-mana", Boolean(skill && skill.cost > player.mp));
+      const shade = button.querySelector(".skill-cooldown");
+      shade.style.setProperty("--cooldown", (remaining ? 100 * remaining / skill.cooldown : 0) + "%");
+      shade.textContent = remaining ? remaining.toFixed(remaining < 1 ? 1 : 0) : "";
+      shade.hidden = remaining <= 0;
     });
 
     const nearby = state.npcs.find((npc) => Math.hypot(player.x - npc.x, player.y - npc.y) < 120);
@@ -185,21 +193,64 @@
       '<p class="muted">ตั้ง 0% เพื่อปิดการใช้ไอเทมชนิดนั้น</p><button type="submit">บันทึก</button></form>';
   }
 
+  function skillBook() {
+    const active = skillTab === "active";
+    const tabs = [["active", "Active · สกิลกดใช้"], ["passive", "Passive · สกิลติดตัว"]];
+    const tabButtons = tabs.map(([id, label]) => '<button type="button" data-action="skill-tab" data-id="' + id +
+      '" aria-pressed="' + (skillTab === id) + '">' + label + '</button>').join("");
+    let slots = "";
+    if (active) {
+      const slotButtons = state.skillSlots.map((_, index) => {
+        const slot = index + 1;
+        const skill = game.getSlotSkill(slot);
+        const name = escape(skill?.name ?? "ว่าง");
+        return '<button type="button" class="book-slot style-' + (skill?.icon ?? "empty") +
+          '" data-action="select-skill-slot" data-id="' + slot + '" aria-pressed="' + (slot === selectedSlot) +
+          '" aria-label="ช่อง ' + slot + ' ' + name + '"><kbd>' + slot + '</kbd>' +
+          skillIcon(skill?.icon ?? "plus") + '<span>' + name + '</span></button>';
+      }).join("");
+      slots = '<div class="book-slots" role="group" aria-label="ช่องลัดสกิล 1 ถึง 5">' + slotButtons + '</div>' +
+        '<div class="book-instructions"><p id="skill-choice">เลือกสกิลสำหรับช่อง <strong>' + selectedSlot +
+        '</strong></p><button type="button" data-action="clear-skill-slot"' +
+        (game.getSlotSkill(selectedSlot) ? '' : ' disabled') + '>ล้างช่อง</button></div>';
+    }
+    const catalog = active ? state.skills : state.passiveSkills;
+    const cards = catalog.map((skill) => {
+      const unlocked = game.isSkillUnlocked(skill);
+      const assignedSlot = active ? state.skillSlots.indexOf(skill.id) + 1 : 0;
+      const status = !unlocked ? "ปลดล็อก Job Lv. " + skill.jobLevel
+        : active ? (assignedSlot ? "ช่อง " + assignedSlot : "") : "ทำงานอยู่";
+      const details = active ? '<small class="book-cost">' + skill.cost + ' มานา · พัก ' + skill.cooldown + ' วิ.</small>' : '';
+      const content = '<span class="book-icon">' + skillIcon(skill.icon) + '</span><span class="book-card-text"><strong>' +
+        escape(skill.name) + '</strong><small>' + escape(skill.description) + '</small>' + details + '</span>' +
+        (status ? '<span class="book-card-state">' + status + '</span>' : '');
+      const className = 'book-card style-' + skill.icon + (unlocked ? '' : ' locked');
+      return '<li>' + (active ? '<button type="button" class="' + className + '" data-action="assign-skill" data-id="' +
+        skill.id + '" aria-describedby="skill-choice"' + (unlocked ? '' : ' disabled') + '>' + content + '</button>' :
+        '<div class="' + className + '">' + content + '</div>') + '</li>';
+    }).join("");
+    return '<div class="book-heading"><p>นักดาบมือเดียว <span>· Job Lv. ' + state.player.jobLevel +
+      '</span></p><div class="book-tabs" role="group" aria-label="ประเภทสกิล">' + tabButtons + '</div></div>' +
+      slots + (active ? '' : '<p class="book-passive-note">สกิลติดตัวทำงานอัตโนมัติเมื่อถึงเลเวลอาชีพที่กำหนด</p>') +
+      '<ul class="book-catalog">' + cards + '</ul>';
+  }
+
   function renderPanel() {
     const { quest } = state;
     const titles = { inventory: "กระเป๋าสัมภาระ", quests: "บันทึกภารกิจ", character: "สถานะตัวละคร", help: "วิธีเล่น",
-      "auto-settings": "ตั้งค่าการเล่นอัตโนมัติ",
+      "auto-settings": "ตั้งค่าการเล่นอัตโนมัติ", skills: "สกิล",
       dialogue: dialogue?.npc.name, vendor: dialogue?.npc.name };
     const content = {
       inventory,
       character,
+      skills: skillBook,
       "auto-settings": autoSettings,
       quests: () => "<h3>" + escape(quest.title) + "</h3><p>" + escape(quest.description) +
         '</p><p class="panel-summary">' + escape(questStatus[quest.status]) +
         (quest.status === "active" ? " · " + quest.count + " / " + quest.needed : "") + "</p>",
       help: () => '<dl class="key-list"><dt>คลิกพื้น / WASD</dt><dd>เดินและสำรวจ</dd>' +
         '<dt>คลิกศัตรู / Space</dt><dd>เข้าประชิดและโจมตีต่อเนื่อง</dd>' +
-        '<dt>1–5</dt><dd>ใช้สกิล</dd><dt>F</dt><dd>คุยหรือเข้าเขตใกล้ตัว</dd>' +
+        '<dt>1–5 · K</dt><dd>ใช้สกิล · เปิดหน้าต่างสกิล</dd><dt>F</dt><dd>คุยหรือเข้าเขตใกล้ตัว</dd>' +
         '<dt>V · C · B</dt><dd>กระเป๋า ภารกิจ สถานะ</dd>' +
         '<dt>ลูกกลิ้ง</dt><dd>ซูมกล้อง</dd>' +
         '<dt>F11</dt><dd>เต็มหน้าจอ</dd></dl>',
@@ -207,6 +258,7 @@
       vendor: merchant,
     };
     text("dialog-title", titles[panel]);
+    dialog.classList.toggle("skill-dialog", panel === "skills");
     $("dialog-content").innerHTML = content[panel]?.() ?? "";
   }
 
@@ -218,7 +270,19 @@
     panel = name;
     keys.clear();
     renderPanel();
+    $("dialog-content").scrollTop = 0;
     if (!dialog.open) dialog.showModal();
+    else $("dialog-close").focus();
+  }
+
+  function useSlot(slot) {
+    if (game.getSlotSkill(slot)) {
+      game.useSkill(slot);
+    } else {
+      selectedSlot = slot;
+      skillTab = "active";
+      openPanel("skills");
+    }
   }
 
   function runAction(action, id) {
@@ -227,7 +291,12 @@
       case "quests":
       case "character":
       case "help":
+      case "skills":
       case "auto-settings": openPanel(action); return;
+      case "skill-tab": skillTab = id; break;
+      case "select-skill-slot": selectedSlot = Number(id); break;
+      case "assign-skill": game.assignSkill(selectedSlot, id); break;
+      case "clear-skill-slot": game.assignSkill(selectedSlot, null); break;
       case "auto-toggle":
         game.setAuto(!state.auto.enabled);
         renderHUD();
@@ -252,14 +321,17 @@
       renderPanel();
       const replacement = [...$("dialog-content").querySelectorAll("[data-action]")]
         .find((button) => button.dataset.action === action && button.dataset.id === id && !button.disabled);
-      (replacement ?? $("dialog-close"))?.focus();
+      const slotButton = panel === "skills" && skillTab === "active"
+        ? $("dialog-content").querySelector('[data-action="select-skill-slot"][aria-pressed="true"]') : null;
+      if (action === "skill-tab") $("dialog-content").scrollTop = 0;
+      (replacement ?? slotButton ?? $("dialog-close")).focus({ preventScroll: true });
     }
   }
 
   document.addEventListener("click", (event) => {
     const skill = event.target.closest("[data-skill]");
     if (skill) {
-      game.useSkill(Number(skill.dataset.skill));
+      useSlot(Number(skill.dataset.skill));
       return;
     }
     const button = event.target.closest("[data-action]");
@@ -297,7 +369,7 @@
     world.zoomBy(event.deltaY > 0 ? 0.93 : 1.075);
   }, { passive: false });
 
-  const shortcuts = { KeyV: "inventory", KeyC: "quests", KeyB: "character", KeyH: "help",
+  const shortcuts = { KeyV: "inventory", KeyC: "quests", KeyB: "character", KeyH: "help", KeyK: "skills",
     Space: "attack", KeyF: "talk", Escape: "clear-target" };
   const movement = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
   document.addEventListener("keydown", (event) => {
@@ -305,7 +377,7 @@
     if (event.ctrlKey || event.metaKey || event.altKey || (code === "Space" && event.target.closest?.("button"))) return;
     if (dialog.open) {
       const action = shortcuts[code];
-      if (["inventory", "quests", "character", "help"].includes(action) && !event.repeat) {
+      if (["inventory", "quests", "character", "help", "skills"].includes(action) && !event.repeat) {
         event.preventDefault();
         openPanel(action);
       }
@@ -319,7 +391,7 @@
     if (event.repeat) return;
     if (/^Digit[1-5]$/.test(code)) {
       event.preventDefault();
-      game.useSkill(Number(code[5]));
+      useSlot(Number(code[5]));
     } else if (shortcuts[code]) {
       event.preventDefault();
       runAction(shortcuts[code]);
@@ -336,10 +408,20 @@
   canvas.after(effects);
 
   game.subscribe((event) => {
+    if (event.type === "level" && dialog.open && panel === "skills") {
+      const { action, id } = document.activeElement.dataset;
+      renderPanel();
+      const button = [...$("dialog-content").querySelectorAll("[data-action]")]
+        .find((entry) => entry.dataset.action === action && entry.dataset.id === id && !entry.disabled);
+      (button ?? $("dialog-close")).focus({ preventScroll: true });
+    }
     if (event.type === "dialog") {
       dialogue = event;
       openPanel(event.npc.type === "vendor" ? "vendor" : "dialogue");
+    } else if (event.type === "skill" || event.type === "skill-strike") {
+      world.playSkillEffect(event);
     } else if (event.type === "damage" && world.screenPoint) {
+      world.playSkillEffect(event);
       const label = document.createElement("span");
       label.className = "damage-number" + (event.enemy ? "" : " hurt");
       label.textContent = fmt(event.value);
@@ -347,6 +429,7 @@
       hits.push({ x: event.x, y: event.y, label, start: performance.now() });
     } else if (event.type === "zone") {
       world.resetCamera();
+      world.clearSkillEffects();
       notify(state.zoneInfo.name);
     } else if (event.type !== "damage") {
       notify(event.text);

@@ -79,13 +79,32 @@
     guardian_seal: { name: 'ตราอารักษ์', description: 'เครื่องรางเก่าที่อารักษ์ศิลาฝากไว้', type: 'material', icon: 'seal', sell: 35 },
   };
 
-  const SKILLS = [
-    { id: 'heavy', name: 'ฟันหนัก', cost: 5, cooldown: 3, description: 'โจมตีเป้าหมายเดียวอย่างแรง' },
-    { id: 'sweep', name: 'กวาดดาบ', cost: 8, cooldown: 5, description: 'โจมตีมอนสเตอร์ในวงรอบตัว' },
-    { id: 'guard', name: 'ตั้งรับ', cost: 6, cooldown: 9, description: 'ลดความเสียหายที่ได้รับครึ่งหนึ่งเป็นเวลา 6 วินาที' },
-    { id: 'heal', name: 'สมานแผล', cost: 10, cooldown: 10, description: 'ฟื้นพลังชีวิตทันที' },
-    { id: 'dash', name: 'พุ่งตัด', cost: 14, cooldown: 8, description: 'พุ่งเข้าโจมตีเป้าหมายในระยะกลาง' },
+  const DEFAULT_SKILL_SLOTS = ['heavy', 'sweep', 'guard', 'heal', 'dash'];
+  const ACTIVE_SKILLS = [
+    { id: 'heavy', name: 'ฟันหนัก', icon: 'blade', jobLevel: 1, cost: 5, cooldown: 3,
+      description: 'โจมตีเป้าหมายเดียวด้วยพลัง 185%', strike: { range: 66, duration: 0.46, multiplier: 1.85 } },
+    { id: 'sweep', name: 'กวาดดาบ', icon: 'flame', jobLevel: 1, cost: 8, cooldown: 5,
+      description: 'โจมตีมอนสเตอร์รอบตัวด้วยพลัง 120%', strike: { area: true, range: 92, duration: 0.43, multiplier: 1.2 } },
+    { id: 'guard', name: 'ตั้งรับ', icon: 'shield', jobLevel: 1, cost: 6, cooldown: 9,
+      description: 'ลดความเสียหายที่ได้รับครึ่งหนึ่งเป็นเวลา 6 วินาที' },
+    { id: 'heal', name: 'สมานแผล', icon: 'leaf', jobLevel: 1, cost: 10, cooldown: 10,
+      description: 'ฟื้น HP ทันที 32 + INT × 3' },
+    { id: 'dash', name: 'พุ่งตัด', icon: 'star', jobLevel: 1, cost: 14, cooldown: 8,
+      description: 'พุ่งเข้าโจมตีเป้าหมายในระยะกลางด้วยพลัง 230%', strike: { range: 195, duration: 0.42, multiplier: 2.3 } },
+    { id: 'thrust', name: 'แทงดาบ', icon: 'thrust', jobLevel: 1, cost: 6, cooldown: 4,
+      description: 'แทงด้วยพลัง 145% ในระยะไกลกว่าฟันหนัก', strike: { range: 112, duration: 0.36, multiplier: 1.45 } },
+    { id: 'interrupt', name: 'ฟันสกัด', icon: 'swords', jobLevel: 2, cost: 9, cooldown: 7,
+      description: 'ฟันด้วยพลัง 110% ขัดจังหวะและชะลอการโจมตีถัดไป 1.2 วินาที',
+      strike: { range: 66, duration: 0.36, multiplier: 1.1 } },
   ];
+  const PASSIVE_SKILLS = {
+    mastery: { name: 'ชำนาญดาบ', icon: 'blade', jobLevel: 1, bonus: 0.1,
+      description: 'เพิ่มความเสียหาย 10% เมื่อถือดาบ' },
+    precision: { name: 'จังหวะดาบ', icon: 'star', jobLevel: 3, bonus: 0.08,
+      description: 'เพิ่มโอกาสคริติคอล 8 จุดเปอร์เซ็นต์เมื่อถือดาบ' },
+    discipline: { name: 'วินัยนักดาบ', icon: 'leaf', jobLevel: 5, bonus: 1,
+      description: 'ฟื้นมานาเพิ่ม 1 หน่วยทุก 2 วินาที' },
+  };
   const QUEST = { title: 'เฝ้าท่ามะขาม', description: 'ช่วยลุงขามกำจัดลิงป่า Lv. 1 จำนวน 3 ตัว', needed: 3 };
   const QUEST_OBJECTIVES = {
     available: 'คุยกับลุงขามเพื่อรับภารกิจ', active: 'กำจัดลิงป่า Lv. 1',
@@ -331,10 +350,12 @@
     const count = boundedNumber(saved?.quest?.count, 0, 0, QUEST.needed);
     const status = questStatus(saved?.quest?.status, count);
     const progress = status === 'ready' || status === 'completed' ? QUEST.needed : count;
+    const skills = ACTIVE_SKILLS.map(skill => ({ ...skill, remaining: 0 }));
+    const skillsById = new Map(skills.map(skill => [skill.id, skill]));
     const state = {
       player, zone: null, zoneInfo: null, enemies: [], npcs: [], portals: [], targetId: null,
       quest: { ...QUEST, status, count: progress, objective: QUEST_OBJECTIVES[status] },
-      skills: SKILLS.map(skill => ({ ...skill, remaining: 0 })), items: ITEMS,
+      skills, passiveSkills: Object.values(PASSIVE_SKILLS), skillSlots: readSkillSlots(saved?.skillSlots), items: ITEMS,
       auto: { ...autoOptions(saved?.auto), enabled: false },
       destination: null, interacting: null, autoAttack: false, dead: false, saved: Boolean(saved), saveMode,
     };
@@ -358,13 +379,49 @@
       emit({ type: 'notice', text });
     }
 
+    function isSkillUnlocked(skill) {
+      return Boolean(skill && player.jobLevel >= skill.jobLevel);
+    }
+
+    function readSkillSlots(savedSlots) {
+      if (!Array.isArray(savedSlots)) return [...DEFAULT_SKILL_SLOTS];
+      const used = new Set();
+      return DEFAULT_SKILL_SLOTS.map((_, index) => {
+        const id = savedSlots[index];
+        if (used.has(id) || !isSkillUnlocked(skillsById.get(id))) return null;
+        used.add(id);
+        return id;
+      });
+    }
+
+    function getSlotSkill(slot) {
+      return skillsById.get(state.skillSlots[slot - 1]);
+    }
+
+    function assignSkill(slot, id) {
+      if (!Number.isInteger(slot) || slot < 1 || slot > state.skillSlots.length) return false;
+      if (id !== null && !isSkillUnlocked(skillsById.get(id))) return false;
+      const index = slot - 1;
+      const previous = state.skillSlots[index];
+      if (previous === id) return true;
+      const other = id === null ? -1 : state.skillSlots.indexOf(id);
+      if (other !== -1) state.skillSlots[other] = previous;
+      state.skillSlots[index] = id;
+      save();
+      return true;
+    }
+
+    function passiveBonus(skill) {
+      return isSkillUnlocked(skill) ? skill.bonus : 0;
+    }
+
     function exportSave() {
       const { x, y, hp, mp, level, jobLevel, xp, jobXp, gold, stats, statPoints, inventory, equipment } = player;
       const { count, status } = state.quest;
       const position = state.dead ? zones.village.spawn : [x, y];
       const { range, hpBelow, mpBelow } = state.auto;
       return JSON.stringify({ version: 1, savedAt: Date.now(), zone: state.dead ? 'village' : state.zone, quest: { status, count },
-        auto: { range, hpBelow, mpBelow },
+        auto: { range, hpBelow, mpBelow }, skillSlots: state.skillSlots,
         player: { x: position[0], y: position[1], hp: state.dead ? player.maxHp : hp,
           mp: state.dead ? player.maxMp : mp, level, jobLevel, xp, jobXp, gold, stats, statPoints, inventory, equipment } });
     }
@@ -389,6 +446,7 @@
       const progress = boundedNumber(restored.quest.count, 0, 0, QUEST.needed);
       const status = questStatus(restored.quest.status, progress);
       Object.assign(player, makePlayer(restored.player));
+      state.skillSlots = readSkillSlots(restored.skillSlots);
       Object.assign(state.auto, autoOptions(restored.auto), { enabled: false });
       autoSearchWait = 0;
       autoItemWait = 0;
@@ -571,11 +629,15 @@
 
     function hitEnemy(enemy, multiplier, skill = null) {
       if (!enemy || enemy.hp <= 0) return;
-      const critical = Math.random() < Math.min(0.5, 0.06 + (player.stats.LUK - 1) * 0.01);
-      const damage = Math.max(1, Math.round((player.attack * (0.92 + Math.random() * 0.16) + (player.stats.DEX - 1)) * multiplier * (critical ? 1.5 : 1)));
+      const wieldingSword = Boolean(player.equipment.weapon);
+      const mastery = wieldingSword ? passiveBonus(PASSIVE_SKILLS.mastery) : 0;
+      const precision = wieldingSword ? passiveBonus(PASSIVE_SKILLS.precision) : 0;
+      const critical = Math.random() < Math.min(0.5, 0.06 + (player.stats.LUK - 1) * 0.01) + precision;
+      const power = player.attack * (0.92 + Math.random() * 0.16) + (player.stats.DEX - 1);
+      const damage = Math.max(1, Math.round(power * multiplier * (1 + mastery) * (critical ? 1.5 : 1)));
       enemy.hp = Math.max(0, enemy.hp - damage);
       enemy.aggro = true;
-      enemy.cooldown = Math.max(0.24, enemy.cooldown);
+      enemy.cooldown = Math.max(skill === 'interrupt' ? 1.2 : 0.24, enemy.cooldown);
       pose(enemy, 'hit', 0.14);
       emit({ type: 'damage', enemy: true, x: enemy.x, y: enemy.y, value: damage, critical, skill });
       if (enemy.hp === 0) defeatEnemy(enemy);
@@ -586,7 +648,7 @@
       const guard = player.guardTime > 0 ? 0.5 : 1;
       const damage = Math.max(1, Math.round((data.atk - (player.stats.VIT - 1) * 0.65) * guard));
       player.hp = Math.max(0, player.hp - damage);
-      emit({ type: 'damage', enemy: false, x: player.x, y: player.y, value: damage });
+      emit({ type: 'damage', enemy: false, x: player.x, y: player.y, value: damage, guarded: guard < 1 });
       if (player.hp > 0) {
         if (player.action === 'idle' || player.action === 'walk') pose(player, 'hit', 0.16);
         return;
@@ -613,40 +675,50 @@
       if (!pendingStrike || player.actionTime - dt > pendingStrike.impact) return;
       const { targets, range, multiplier, style } = pendingStrike;
       pendingStrike = null;
+      const origin = style === 'basic' ? null : { x: player.x, y: player.y };
+      let contact = null;
       for (const enemy of targets) {
         const gap = distance(player, enemy);
         if (enemy.hp <= 0 || gap > range || !straightPath(player, enemy, state.zoneInfo)) continue;
+        if (origin && !contact) contact = { x: enemy.x, y: enemy.y };
         if (style === 'dash') moveToward(player, enemy, Math.max(0, gap - 28), state.zoneInfo);
         hitEnemy(enemy, multiplier, style === 'basic' ? null : style);
       }
+      if (origin) {
+        emit({ type: 'skill-strike', skill: style, origin, contact, dir: player.dir,
+          arrival: { x: player.x, y: player.y }, range: range - 10 });
+      }
     }
 
-    function useSkill(index) {
+    function useSkill(slot) {
       if (state.dead || pendingStrike) return false;
-      const skill = state.skills[index - 1];
-      if (!skill) return false;
+      const skill = getSlotSkill(slot);
+      if (!isSkillUnlocked(skill)) return false;
       if (skill.remaining > 0) { notice('สกิลกำลังพัก'); return false; }
       if (player.mp < skill.cost) { notice('มานาไม่พอ'); return false; }
-      const enemy = targetEnemy();
-      const range = skill.id === 'dash' ? 195 : 66;
-      const targeted = skill.id === 'dash' || skill.id === 'heavy';
-      if (targeted && (!enemy || distance(player, enemy) > range || !straightPath(player, enemy, state.zoneInfo))) {
-        notice(enemy ? 'เป้าหมายอยู่นอกระยะสกิล' : 'เลือกมอนสเตอร์ก่อนใช้สกิล');
-        return false;
+      const { strike } = skill;
+      let targets;
+      if (strike?.area) {
+        targets = state.enemies.filter(enemy => enemy.hp > 0 && distance(player, enemy) < strike.range &&
+          straightPath(player, enemy, state.zoneInfo));
+        if (!targets.length) { notice('ไม่มีมอนสเตอร์ในระยะ'); return false; }
+      } else if (strike) {
+        const enemy = targetEnemy();
+        if (!enemy || distance(player, enemy) > strike.range || !straightPath(player, enemy, state.zoneInfo)) {
+          notice(enemy ? 'เป้าหมายอยู่นอกระยะสกิล' : 'เลือกมอนสเตอร์ก่อนใช้สกิล');
+          return false;
+        }
+        targets = [enemy];
+        player.dir = direction(enemy.x - player.x, enemy.y - player.y);
       }
-      const area = state.enemies.filter(entity => entity.hp > 0 && distance(player, entity) < 92 && straightPath(player, entity, state.zoneInfo));
-      if (skill.id === 'sweep' && !area.length) { notice('ไม่มีมอนสเตอร์ในระยะ'); return false; }
       if (skill.id === 'heal' && player.hp >= player.maxHp) { notice('พลังชีวิตเต็มแล้ว'); return false; }
       player.mp -= skill.cost;
       skill.remaining = skill.cooldown;
       attackCooldown = Math.max(attackCooldown, 0.43);
-      if (targeted) player.dir = direction(enemy.x - player.x, enemy.y - player.y);
-      if (skill.id === 'guard' || skill.id === 'heal') pose(player, 'cast', 0.38);
-      if (skill.id === 'heavy') startStrike([enemy], skill.id, 0.46, range + 10, 1.85);
-      if (skill.id === 'sweep') startStrike(area, skill.id, 0.43, 102, 1.2);
+      if (strike) startStrike(targets, skill.id, strike.duration, strike.range + 10, strike.multiplier);
+      else pose(player, 'cast', 0.38);
       if (skill.id === 'guard') player.guardTime = 6;
       if (skill.id === 'heal') player.hp = Math.min(player.maxHp, player.hp + 32 + player.stats.INT * 3);
-      if (skill.id === 'dash') startStrike([enemy], skill.id, 0.42, range + 10, 2.3);
       emit({ type: 'skill', skill: skill.id, name: skill.name, x: player.x, y: player.y });
       return true;
     }
@@ -918,7 +990,7 @@
         regeneration += dt;
         if (regeneration >= 2) {
           regeneration -= 2;
-          player.mp = Math.min(player.maxMp, player.mp + 1);
+          player.mp = Math.min(player.maxMp, player.mp + 1 + passiveBonus(PASSIVE_SKILLS.discipline));
           if (!state.enemies.some(enemy => enemy.aggro)) player.hp = Math.min(player.maxHp, player.hp + 1);
         }
       }
@@ -931,7 +1003,7 @@
       ? { x: saved.player.x, y: saved.player.y } : null;
     const spawn = options.spawn || savedPoint;
     enterZone(zone, Array.isArray(spawn) ? { x: spawn[0], y: spawn[1] } : spawn);
-    return { state, update, moveTo, selectTarget, attack, useSkill, interact, useItem, equipItem,
+    return { state, update, moveTo, selectTarget, attack, useSkill, getSlotSkill, assignSkill, isSkillUnlocked, interact, useItem, equipItem,
       buyItem, sellItem, raiseStat, setAuto, configureAuto, save, exportSave, importSave,
       subscribe(fn) { subscribers.add(fn); return () => subscribers.delete(fn); } };
   }
