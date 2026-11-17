@@ -12,15 +12,16 @@
   const groupButtons = [...document.querySelectorAll("[data-group]")];
   const groundButtons = [...document.querySelectorAll("[data-ground]")];
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
-  const stepSize = 1 / 24;
+  const stepSize = () => motion.id === "heavy" ? 1 / 60 : 1 / 24;
   const timeString = (value) => value.toFixed(2) + " วิ";
   const timelineMax = Number(timeline.max);
 
   let actor = actors[0];
   let group = actor.group;
-  let motion = motions[actor.motions[0]];
-  let elapsed = 0;
-  let playing = !reduceMotion.matches;
+  const showHeavy = location.hash === "#heavy";
+  let motion = motions[showHeavy ? "heavy" : actor.motions[0]];
+  let elapsed = showHeavy ? .225 : 0;
+  let playing = !showHeavy && !reduceMotion.matches;
   let speed = Number(speedControl.value) || 1;
   let zoom = Number(zoomControl?.value) || 1;
   let ground = groundButtons.find((button) => button.getAttribute("aria-pressed") === "true")?.dataset.ground || "dark";
@@ -212,8 +213,8 @@
   });
   play.addEventListener("click", togglePlaying);
   byId("replay").addEventListener("click", () => resetTimeline(true));
-  byId("step-back").addEventListener("click", () => seek(elapsed - stepSize));
-  byId("step-next").addEventListener("click", () => seek(elapsed + stepSize));
+  byId("step-back").addEventListener("click", () => seek(elapsed - stepSize()));
+  byId("step-next").addEventListener("click", () => seek(elapsed + stepSize()));
   timeline.addEventListener("input", () => seek(Number(timeline.value) / timelineMax * motion.duration));
   speedControl.addEventListener("change", () => {
     speed = Number(speedControl.value) || 1;
@@ -239,7 +240,7 @@
       togglePlaying();
     } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
-      seek(elapsed + stepSize * (event.key === "ArrowRight" ? 1 : -1));
+      seek(elapsed + stepSize() * (event.key === "ArrowRight" ? 1 : -1));
     }
   });
   document.addEventListener("visibilitychange", () => { previousTick = null; });

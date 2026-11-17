@@ -12,7 +12,7 @@
     {
       id: "one-handed-swordsman", name: "นักดาบมือเดียว", role: "ตัวละครชายในเกม", group: "player",
       src: "assets/sprites.png", sheet: [384, 192], rect: [26, 13, 46, 73],
-      weapon: "rusty_sword", motions: ["idle", "walk", "attack"],
+      weapon: "rusty_sword", motions: ["idle", "walk", "attack", "heavy"],
     },
     {
       id: "khram", name: "คราม", role: "นักดาบฝึกหัด", group: "player", style: "swordsman",
@@ -50,14 +50,14 @@
       motions: ["idle", "walk", "hop", "attack", "hurt", "fall"],
     },
     {
-      id: "forest-spirit", name: "ภูตพงไพร", role: "มอนสเตอร์ Lv. 3", group: "monster", style: "spirit",
+      id: "forest-spirit", name: "นางไม้", role: "มอนสเตอร์ Lv. 3", group: "monster", style: "spirit",
       // Bottom-row silhouettes overlap in x while remaining separated in y.
       rect: [11, 432, 483, 742], clip: [[0, 0], [1, 0], [1, 0.48], [0.955, 0.6], [0.955, 1], [0, 1]],
       height: 0.9, anchor: [0.49, 0.994],
       motions: ["idle", "cast", "hurt", "fall"],
     },
     {
-      id: "stone-guardian", name: "อารักษ์ศิลา", role: "มอนสเตอร์ Lv. 5", group: "monster", style: "guardian",
+      id: "stone-guardian", name: "ยักษ์ศิลา", role: "มอนสเตอร์ Lv. 5", group: "monster", style: "guardian",
       rect: [474, 423, 820, 746], clip: [[0.03, 0], [1, 0], [1, 1], [0, 1], [0, 0.62], [0.03, 0.46]],
       height: 1.2, anchor: [0.51, 0.992],
       motions: ["idle", "walk", "attack", "guard", "roar", "hurt", "fall"],
@@ -68,6 +68,7 @@
     idle: { id: "idle", name: "ท่าพัก", description: "ขยับตัวเบา ๆ ระหว่างยืนพัก", duration: 1.8, loop: true },
     walk: { id: "walk", name: "เดิน", description: "สลับจังหวะก้าวและถ่ายน้ำหนักอยู่กับที่", duration: 1.1, loop: true },
     attack: { id: "attack", name: "โจมตี", description: "ตั้งท่า พุ่งเข้าหาเป้าหมาย แล้วคืนสู่ท่าพัก", duration: 0.85, loop: false },
+    heavy: { id: "heavy", name: "ฟันหนัก", description: "รอยดาบ 5 เฟรม · ประกายปะทะ 4 เฟรม", duration: 0.92, loop: true },
     cast: { id: "cast", name: "ร่ายสกิล", description: "รวบรวมพลังและปล่อยเอฟเฟกต์สกิล", duration: 1.4, loop: false },
     hurt: { id: "hurt", name: "ถูกโจมตี", description: "ชะงักและถอยจากแรงปะทะ", duration: 0.64, loop: false },
     fall: { id: "fall", name: "ล้มลง", description: "เสียหลักและจบท่าที่พื้น", duration: 1.2, loop: false },

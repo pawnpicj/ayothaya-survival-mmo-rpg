@@ -9,8 +9,10 @@
   <link rel="stylesheet" href="styles.css">
   <script src="game.js" defer></script>
   <script src="preview-data.js" defer></script>
+  <script src="heavy-effect.js" defer></script>
   <script src="player-sprite.js" defer></script>
   <script src="world.js" defer></script>
+  <script src="skill-audio.js" defer></script>
   <script src="ui.js" defer></script>
 </head>
 <body>
@@ -41,7 +43,7 @@
   </svg>
 
   <main class="game" id="game">
-    <canvas id="world" aria-label="ฉากเกมอโยธยา"></canvas>
+    <canvas id="world" tabindex="-1" aria-label="ฉากเกมอโยธยา"></canvas>
     <div class="scene-vignette" aria-hidden="true"></div>
 
     <aside class="scouting" aria-label="แผนที่และภารกิจ">
@@ -61,7 +63,7 @@
         </div>
       </section>
 
-      <button type="button" class="quest-tracker panel" data-action="quests" aria-label="เปิดสมุดภารกิจ">
+      <button type="button" id="quest-tracker" class="quest-tracker panel" data-action="quests" aria-label="เปิดสมุดภารกิจ">
         <span class="quest-heading"><svg class="icon"><use href="#i-quest"></use></svg> ภารกิจติดตาม <svg class="icon quest-arrow"><use href="#i-chevron"></use></svg></span>
         <strong id="quest-title">เฝ้าท่ามะขาม</strong>
         <span class="quest-detail"><span id="quest-objective">ไปพบลุงขาม</span><span id="quest-count"></span></span>
@@ -81,6 +83,9 @@
       </button>
       <button type="button" class="menu-button panel" data-action="character" title="ตัวละคร (B)" aria-label="ตัวละคร (B)">
         <svg class="icon" aria-hidden="true"><use href="#i-person"></use></svg><kbd>B</kbd>
+      </button>
+      <button type="button" class="menu-button panel" data-action="skills" aria-haspopup="dialog" title="เปิดหน้าต่างสกิล (K)" aria-label="เปิดหน้าต่างสกิล (K)">
+        <svg class="icon" aria-hidden="true"><use href="#i-skill-book"></use></svg><kbd>K</kbd>
       </button>
       <button type="button" class="menu-button panel" data-action="fullscreen" title="เต็มจอ (F11)" aria-label="เต็มจอ (F11)">
         <svg class="icon" aria-hidden="true"><use href="#i-fullscreen"></use></svg><kbd>F11</kbd>
@@ -103,12 +108,27 @@
       </button>
     </div>
 
+    <div class="training-controls" id="training-controls" role="group" aria-label="กฎลานฝึก" hidden>
+      <button type="button" class="training-option panel" id="training-cooldown" data-action="training-cooldown"
+        aria-label="คูลดาวน์สกิลในลานฝึก" aria-pressed="true">
+        <span>คูลดาวน์สกิล</span><strong id="training-cooldown-state">เปิด</strong>
+      </button>
+      <button type="button" class="training-option panel" id="training-mana" data-action="training-mana"
+        aria-label="ใช้มานาในลานฝึก" aria-pressed="true">
+        <span>ใช้มานา</span><strong id="training-mana-state">เปิด</strong>
+      </button>
+    </div>
+
     <section class="target panel" id="target" aria-label="เป้าหมายที่เลือก" hidden>
       <div class="target-label"><strong id="target-name"></strong><span id="target-level"></span></div>
       <button type="button" class="icon-button clear-target" data-action="clear-target" aria-label="ยกเลิกเป้าหมาย" title="ยกเลิกเป้าหมาย">
         <svg class="icon"><use href="#i-close"></use></svg>
       </button>
       <div class="meter meter-hp"><span id="target-hp-fill" class="meter-fill"></span><span id="target-hp-text" class="meter-text"></span></div>
+      <div id="training-range" class="training-range" hidden>
+        <span>ถึงเป้า <strong id="training-target-distance"></strong> หน่วย</span>
+        <span>โจมตีปกติ <strong id="training-attack-range"></strong> หน่วย</span>
+      </div>
     </section>
 
     <p id="interaction-hint" class="interaction-hint panel" hidden></p>
@@ -138,9 +158,14 @@
         <button type="button" class="skill style-shield panel" data-skill="3" title="ตั้งรับ (3)"><kbd>3</kbd><span class="skill-cooldown" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg><span class="skill-label">ตั้งรับ</span></button>
         <button type="button" class="skill style-leaf panel" data-skill="4" title="สมานแผล (4)"><kbd>4</kbd><span class="skill-cooldown" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="#i-leaf"></use></svg><span class="skill-label">สมานแผล</span></button>
         <button type="button" class="skill style-star panel" data-skill="5" title="พุ่งตัด (5)"><kbd>5</kbd><span class="skill-cooldown" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="#i-star"></use></svg><span class="skill-label">พุ่งตัด</span></button>
-        <button type="button" class="menu-button skill-book panel" data-action="skills" aria-haspopup="dialog" title="เปิดหน้าต่างสกิล (K)" aria-label="เปิดหน้าต่างสกิล (K)">
-          <svg class="icon" aria-hidden="true"><use href="#i-skill-book"></use></svg><kbd>K</kbd>
-        </button>
+        <div class="item-shortcuts" role="group" aria-label="ช่องลัดไอเทม">
+          <button type="button" class="item-shortcut panel" data-action="item-shortcut" data-id="1" aria-label="ช่องบน ว่าง">
+            <span class="item-shortcut-icon" aria-hidden="true"></span><span class="item-shortcut-count" aria-hidden="true" hidden></span>
+          </button>
+          <button type="button" class="item-shortcut panel" data-action="item-shortcut" data-id="2" aria-label="ช่องล่าง ว่าง">
+            <span class="item-shortcut-icon" aria-hidden="true"></span><span class="item-shortcut-count" aria-hidden="true" hidden></span>
+          </button>
+        </div>
       </section>
 
       <section class="actions" aria-label="คำสั่ง">
@@ -155,6 +180,7 @@
 
     <dialog id="dialog" aria-labelledby="dialog-title" class="dialog panel">
       <div class="dialog-heading">
+        <span class="bag-header-emblem" aria-hidden="true"><svg class="icon"><use href="#i-bag"></use></svg></span>
         <h2 id="dialog-title"></h2>
         <button type="button" class="icon-button" id="dialog-close" data-action="close" title="ปิด (Esc)" aria-label="ปิด">
           <svg class="icon"><use href="#i-close"></use></svg>

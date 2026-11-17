@@ -6,17 +6,19 @@ import { networkInterfaces } from "node:os";
 const useLan = process.argv.includes("--lan");
 const port = Number(process.env.PORT ?? 4173);
 const host = useLan ? "0.0.0.0" : "127.0.0.1";
-const files = new Set(["index.html", "styles.css", "ui.js", "game.js", "player-sprite.js", "world.js",
+const files = new Set(["index.html", "styles.css", "ui.js", "game.js", "player-sprite.js", "world.js", "skill-audio.js", "heavy-effect.js",
   "preview.html", "preview.css", "preview-data.js", "preview-stage.js", "preview.js",
   "assets/tha-phraya.png", "assets/tha-phraya-east-gate.png", "assets/dong-chedi.png", "assets/player-anchor.png", "assets/sprites.png",
   "assets/ruins-ranger.png", "assets/village-npcs.png", "assets/village-bridge.png", "assets/red-vortex.png",
+  "assets/training-yard.png", "assets/training-dummy.png",
+  "assets/inventory-icons.png", "assets/inventory-leather.png", "assets/town-scroll.png", "assets/effects/heavy/sheet.png",
   "assets/concepts/player-concepts.png", "assets/concepts/npc-concepts.png",
   "assets/concepts/monster-concepts.png"]);
 const mime = { html: "text/html; charset=utf-8", css: "text/css; charset=utf-8",
   js: "text/javascript; charset=utf-8", png: "image/png" };
 const clients = new Set();
 const players = new Map();
-const zoneWidths = new Map([["village", 2080], ["ruins", 1680]]);
+const zoneWidths = new Map([["village", 2080], ["ruins", 1680], ["training", 1680]]);
 const directions = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
 const actions = new Set(["idle", "walk", "attack", "cast", "hit", "death"]);
 const weapons = new Set(["rusty_sword", "bronze_sword"]);

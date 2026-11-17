@@ -170,7 +170,7 @@
     const scene = canvas.getContext('2d');
     scene.imageSmoothingEnabled = false;
 
-    return function draw(ctx, actor, { dir, bearing, walking, phase, progress, size }) {
+    return function draw(ctx, actor, { dir, bearing, walking, phase, progress, size, heavyEffect }) {
       const [view, idle, swingDirection] = VIEWS[dir] ?? VIEWS.s;
       const stance = BODY[view];
       const source = BODY[stance.armSource ?? view];
@@ -178,6 +178,7 @@
       const { arm } = stances[stance.armSource ?? view];
       const blade = BLADES[actor.equipment?.weapon ?? actor.weapon] ?? BLADES.rusty_sword;
       const swinging = progress !== null;
+      const useHeavySprite = swinging && actor.attackStyle === 'heavy' && heavyEffect?.ready;
       const walk = walking && !swinging ? Math.sin(phase * .5) : 0;
       const angle = swinging ? bladeAngle(idle, bearing, swingDirection, progress) : idle - walk * .10;
       const lift = clamp(Math.sin(angle - idle), -.8, .8);
@@ -194,7 +195,7 @@
         scene.rotate(armTurn);
         scene.translate(gripX - shoulderX, gripY - shoulderY);
         const swordTurn = angle - armTurn;
-        drawBlade(scene, blade, swordTurn, progress, swingDirection, actor.attackStyle);
+        drawBlade(scene, blade, swordTurn, useHeavySprite ? null : progress, swingDirection, actor.attackStyle);
         scene.drawImage(arm, -gripX, -gripY);
         drawGrip(scene, swordTurn, swingDirection);
         scene.restore();
@@ -212,6 +213,11 @@
 
       const scale = size / CELL;
       ctx.drawImage(canvas, -(CELL / 2 + MARGIN) * scale, -(86 + MARGIN) * scale, SIZE * scale, SIZE * scale);
+      if (useHeavySprite) {
+        const handX = stance.shoulder[0] + (gripX - shoulderX) * Math.cos(armTurn) - (gripY - shoulderY) * Math.sin(armTurn);
+        const handY = stance.shoulder[1] + (gripX - shoulderX) * Math.sin(armTurn) + (gripY - shoulderY) * Math.cos(armTurn);
+        heavyEffect.drawSlash(ctx, progress, (handX - CELL / 2) * scale, (handY - 86) * scale, size / 64, bearing, swingDirection < 0);
+      }
     };
   }
 

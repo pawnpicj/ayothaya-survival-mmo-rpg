@@ -12,15 +12,35 @@
 
 ## เริ่มเล่น
 
-คุยกับลุงขามข้างบันไดวัดที่บ้านท่ามะขามเพื่อรับภารกิจปราบลิงป่า Lv. 1 จำนวน 3 ตัว แล้วกลับมารายงาน แม่ค้าสมุนไพรอยู่หน้าเพิงตลาด เมื่อส่งเควสต์แล้วให้ข้ามสะพานไม้และลอดประตูอิฐทางตะวันออก หรือคลิกประตูดงเจดีย์ร้าง ขากลับให้เดินลอดซุ้มฝั่งซ้ายของดง
+คุยกับลุงขามข้างบันไดวัดที่บ้านท่ามะขามเพื่อรับภารกิจปราบลิงป่า Lv. 1 จำนวน 3 ตัว แล้วกลับมารายงาน เครื่องหมาย **? สีเหลือง** คือมีเควสต์ให้รับ และ **? สีเขียว** คือพร้อมส่งเควสต์ กด **รับเควสต์** หรือ **สำเร็จเควสต์** ในแถบภารกิจเพื่อให้ตัวละครเดินไปคุยกับเจ้าของเควสต์ ในครั้งแรกหน้าต่างจะแสดงรางวัลพร้อมปุ่ม **รับภารกิจ** และ **ไม่รับภารกิจ** แม่ค้าสมุนไพรอยู่หน้าเพิงตลาด เมื่อส่งเควสต์แล้วให้ข้ามสะพานไม้และลอดประตูอิฐทางตะวันออก หรือคลิกประตูดงเจดีย์ร้าง ขากลับให้เดินลอดซุ้มฝั่งซ้ายของดง
+
+ในดงเจดีย์ร้าง คุยกับพรานหม่องเพื่อรับภารกิจกำจัดนางไม้ 10 ตัว และยักษ์ศิลา 5 ตัว แล้วกลับไปรายงานเพื่อเปิดซุ้มประตูชั้นในด้านตะวันออกเฉียงเหนือ
+
+เข้าลานฝึกผ่านวาร์ปข้างซุ้มฝั่งซ้ายของบ้านท่ามะขาม ลองโจมตีหุ่นไล่กา 3 ตัว ตัวละ 999,999 HP ปุ่ม **คูลดาวน์สกิล** และ **ใช้มานา** สลับเปิดหรือปิดแยกกันได้ภายในลาน เมื่อปิดใช้มานาจะกดสกิลที่ปลดล็อกแล้วได้แม้มี 0 MP และ Auto จะไม่ใช้น้ำอบฟื้นมานา หุ่นแต่ละตัวฟื้น HP เต็มหลังผ่าน 5 วินาทีจากดาเมจครั้งล่าสุด หรือทันทีเมื่อตีจน HP หมด วาร์ปฝั่งซ้ายของลานพากลับบ้านท่ามะขาม
+
+เมื่อเลือกหุ่น แถบเป้าหมายแสดงระยะเส้นตรงถึงหุ่นกับระยะเริ่มโจมตีปกติ ใช้หน่วยพิกัดแผนที่และไม่เปลี่ยนตามการซูม กด **K** ดูระยะเริ่มใช้สกิลหรือรัศมีสกิลรอบตัว
 
 เปิด [พรีวิวแอนิเมชัน](preview.html) จากไอคอนเล่นบนแถบเมนูเกมเพื่อดูตัวละคร, NPC และมอนสเตอร์จากชุดคอนเซ็ปต์ใหม่ เลือกท่าแล้วปรับความเร็ว เลื่อนเวลา หรือดูทีละเฟรมได้ รายการนักดาบมือเดียวใช้สไปรต์และท่าถือดาบจากเกม ส่วนตัวละครชุดคอนเซ็ปต์ใช้ภาพมุมเดียวเพื่อทดลองจังหวะและเอฟเฟกต์
 
+กด **V** เพื่อเปิดกระเป๋าแบบช่องไอเทม คลิกไอเทมเพื่อดูรายละเอียด ใช้ หรือสวม กด **การ์ด** เพื่อกรองเฉพาะการ์ด เลือกไอเทมที่ใช้หรือสวมได้แล้วกด **ใส่ช่องบน** หรือ **ใส่ช่องล่าง** เพื่อกำหนดช่องลัดข้างแถบสกิล
+
+ซื้อ **คัมภีร์กลับเมือง** จากแม่ค้าสมุนไพรใบละ **20 เบี้ย** แล้วใส่คัมภีร์ลงช่องลัดหรือกด **ใช้** ในกระเป๋าเพื่อกลับจุดเริ่มต้นของเมืองที่ใกล้ที่สุด ใช้ครั้งละหนึ่งใบ
+
 กด **Auto** เพื่อค้นหามอนสเตอร์และเดินเข้าระยะโจมตี ปุ่มตั้งค่าข้าง Auto ใช้เลือกระยะค้นหาใกล้ กลาง หรือไกล และกำหนดเปอร์เซ็นต์ใช้ยาสมุนไพรกับน้ำอบมนตราจากกระเป๋าแยกกัน ค่าเริ่มต้นคือ HP 50% และมานา 40% ใช้ไอเทมเมื่อค่าต่ำกว่าเปอร์เซ็นต์ที่ตั้งไว้ และตั้ง 0% เพื่อปิดการใช้ไอเทมชนิดนั้น การสั่งเดินเองจะปิด Auto
+
+ในหน้าตั้งค่า **Auto** เลือกสกิล Active ที่เปิดใช้งานแล้วจากดรอปดาวน์ **Skill 1–5** ตามลำดับที่ต้องการให้ Auto ลองใช้ ช่องที่เว้นว่างจะถูกข้าม ระบบจะใช้สกิลที่ปลดล็อกและพร้อมใช้ตามระยะ มานา และคูลดาวน์ สมานแผลทำงานเมื่อ HP ต่ำกว่า 60% ตั้งรับเมื่อมีศัตรูเข้าประชิด และฟันสกัดเมื่อเป้าหมายง้างโจมตี ถ้าไม่มีสกิลที่ใช้ได้ ระบบจะโจมตีปกติ
 
 นักดาบฝึกหัดถือดาบมือขวาขณะยืน เดิน และโจมตี เมื่อได้ดาบสำริดให้กด **V** เปิดกระเป๋าแล้วสวมเพื่อดูรูปดาบใหม่ในฉาก
 
-กด **K** หรือคลิกไอคอนหนังสือข้างแถบสกิลเพื่อเปิดหน้าต่างสกิล ในแท็บ **Active** ให้เลือกช่อง 1–5 แล้วคลิกสกิลที่ต้องการใส่ ถ้าสกิลนั้นอยู่ในอีกช่อง ระบบจะสลับสองช่องให้ การจัดช่องจะบันทึกพร้อมเซฟเกม ส่วนสกิลในแท็บ **Passive** จะทำงานอัตโนมัติเมื่อถึง Job Lv. ที่กำหนด
+กด **K** หรือคลิกไอคอนหนังสือในแถบเมนูด้านบนเพื่อเปิดหน้าต่างสกิล เลือก **เปิดใช้งาน** เมื่อ Base Lv., Job Lv. และค่าสเตตัสถึงเงื่อนไขที่แสดงบนการ์ดสกิลในแท็บ **Active** หรือ **Passive** สกิล Active ที่เปิดแล้วใช้กับปุ่มลัดหรือ Auto ได้ ส่วนสกิล Passive จะเริ่มให้โบนัสทันที ในแท็บ Active ให้เลือกช่อง 1–5 แล้วคลิกสกิลที่เปิดแล้วเพื่อจัดลงช่อง ปุ่ม **ล้างทั้งหมด** ทำให้ช่องลัดทั้ง 5 ว่าง การเปิดใช้งานและการจัดช่องจะบันทึกพร้อมเซฟเกม
+
+เอฟเฟกต์และเสียงสกิลแยกตามท่าและจังหวะปะทะ ใช้ได้ทั้งกดเองและ Auto เสียงเริ่มทำงานหลังคลิกหรือกดปุ่มในเกม กด **H** แล้วเลือก **เสียงสกิล** เพื่อเปิดหรือปิด
+
+ในหน้าสถานะ **B** กด **+** เพื่อจัดแต้มและ **−** เพื่อคืนแต้มที่กำลังจัด จากนั้นกด **ยืนยัน** เพื่อบันทึก
+
+กด **B → รีเซ็ตเลเวล** เพื่อตั้ง Base Lv. และ Job Lv. เป็น 1 และ EXP เป็น 0
+
+เริ่มตัวละครใหม่ได้จาก **B → รีเซ็ตตัวละคร → เริ่มใหม่** การเริ่มใหม่จะคืนเลเวล สเตตัส สกิล เควสต์ และไอเทมเป็นค่าเริ่มต้น
 
 | ปุ่ม | การควบคุม |
 | --- | --- |
@@ -30,8 +50,12 @@
 | K | เปิดหน้าต่างสกิลและจัดช่องลัด |
 | คลิก NPC / ประตู หรือ F เมื่ออยู่ใกล้ | พูดคุยหรือเปลี่ยนเขต |
 | V / C / B | กระเป๋า / สมุดภารกิจ / สถานะตัวละคร |
-| ลูกกลิ้ง | ซูมกล้องในทั้งสองเขต |
+| ลูกกลิ้ง | ซูมกล้อง |
 | Esc / F11 | ปิดหน้าต่างหรือเลิกล็อกเป้า / เต็มจอ |
+
+## ทดสอบเกม
+
+ดูรหัส ขั้นตอน และผลที่คาดหวังใน [Test Case](tests/TEST-CASES.md) ชุดอัตโนมัติรันด้วย `node --test tests/game.test.cjs`
 
 ## ภาพต้นฉบับ
 
@@ -41,11 +65,21 @@
 - `assets/tha-phraya-east-gate.png` เป็นฉากหมู่บ้านที่ใช้ในเกม สะพานและทางเดินขึ้นฝั่งเชื่อมถึงประตูอิฐแบบเดียวกับซุ้มในดงเจดีย์ร้าง ภาพสร้างด้วย ImageGen โดยใช้ฉากทั้งสองเป็นภาพอ้างอิง
 - `assets/dong-chedi.png` สร้างด้วย ImageGen โดยอ้างอิงมุมกล้อง สี และรายละเอียดจากภาพหมู่บ้าน ปรางค์อิฐและแนวต้นไม้อยู่ด้านหลัง ทางเข้ากับลานต่อสู้อยู่ในพื้นที่เปิด
 - `assets/village-bridge.png` เป็นภาพสะพานไม้พิกเซลอาร์ตจาก ImageGen ของแบบร่างทางข้ามหมู่บ้าน
-- `assets/sprites.png` ใช้ prompt สำหรับ atlas พื้นโปร่งใส 4 คอลัมน์ × 2 แถว นักดาบผ้าคาดเอวสีทองและโจงกระเบนสีครามหันหน้า ซ้าย ขวา และหลัง ตามด้วยลุงขาม ลูกมะขามภูต ลิงป่า และภูตพงไพร ปรับขนาดแต่ละช่องเป็น 96 × 96 พิกเซลและจัดจุดยึดเท้าที่ (48, 86)
+- `assets/sprites.png` ใช้ prompt สำหรับ atlas พื้นโปร่งใส 4 คอลัมน์ × 2 แถว นักดาบผ้าคาดเอวสีทองและโจงกระเบนสีครามหันหน้า ซ้าย ขวา และหลัง ตามด้วยลุงขาม ลูกมะขามภูต ลิงป่า และนางไม้ ปรับขนาดแต่ละช่องเป็น 96 × 96 พิกเซลและจัดจุดยึดเท้าที่ (48, 86)
 - `assets/player-anchor.png` ตัดจากภาพนักดาบหันหน้าใน atlas ชุดเดียวกัน
-- `assets/ruins-ranger.png` เป็นสไปรต์พรานเฝ้าดงจาก ImageGen อ้างอิงขนาด รูปทรง และขอบพิกเซลของตัวผู้เล่น ใช้ช่อง 96 × 96 พิกเซลกับจุดยึดเท้าที่ (48, 86)
-- `assets/village-npcs.png` เป็น atlas สไปรต์ลุงขาม แม่ค้าสมุนไพร และยามประตูท่า เรียงจากซ้ายไปขวา ใช้ช่อง 96 × 96 พิกเซลและจุดยึดเท้าที่ (48, 86) เช่นเดียวกับพรานเฝ้าดง
+- `assets/ruins-ranger.png` เป็นสไปรต์พรานหม่องจาก ImageGen อ้างอิงขนาด รูปทรง และขอบพิกเซลของตัวผู้เล่น ใช้ช่อง 96 × 96 พิกเซลกับจุดยึดเท้าที่ (48, 86)
+- `assets/village-npcs.png` เป็น atlas สไปรต์ลุงขาม แม่ค้าสมุนไพร และยามประตูท่า เรียงจากซ้ายไปขวา ใช้ช่อง 96 × 96 พิกเซลและจุดยึดเท้าที่ (48, 86) เช่นเดียวกับพรานหม่อง
+- `assets/inventory-leather.png` เป็นพื้นหนังกระเป๋าขอบทองเหลืองจาก ImageGen
+- `assets/town-scroll.png` เป็นไอคอนคัมภีร์กลับเมืองโปร่งใสจาก ImageGen ใช้ร่วมกันในช่องลัด กระเป๋า และร้าน NPC
+- `assets/inventory-icons.png` เป็นแผงไอคอนไอเทมพิกเซลอาร์ต 5 × 2 ช่องจาก ImageGen
 - `assets/red-vortex.png` เป็นพื้นผิววังวนแดงโปร่งใสจาก ImageGen หมุนอยู่ในช่องประตูที่พร้อมวาร์ปในเกม
+
+<details>
+<summary>พรอมป์ต้นฉบับสำหรับคัมภีร์กลับเมือง (ImageGen)</summary>
+
+> Use case: stylized-concept. Generate exactly one original transparent item icon for Ayothaya Survival, a Thai Ayutthaya fantasy pixel RPG. Square image, isolated, centered, 12% clear alpha padding each side. A warm aged parchment teleport scroll, diagonally tilted from lower left to upper right, loosely rolled ends capped with antique bronze, a short deep teal ribbon and small crimson wax seal near the base. The exposed center has a bold small turquoise portal ring with pale inner glint and a single gold spark, readable as a travel item at 32 pixels; it has NO text, rune lettering, labels, frames, background, UI, hands, or extra objects. Crisp dark umber outer silhouette, compact hand-placed pixel clusters, an amber paper body with at most 4 distinct tone bands, restrained gold highlights, no smooth illustration shading. Make it look like a 48x48 classic inventory sprite upscaled by nearest neighbor. Preserve genuine transparent alpha. Use a near-frontal three-quarter view and balanced diagonal; strong clear shape at handheld game UI size.
+
+</details>
 
 <details>
 <summary>พรอมป์ต้นฉบับสำหรับวังวนแดง (ImageGen)</summary>
@@ -76,7 +110,7 @@
 </details>
 
 <details>
-<summary>พรอมป์ต้นฉบับสำหรับสไปรต์พรานเฝ้าดง (ImageGen)</summary>
+<summary>พรอมป์ต้นฉบับสำหรับสไปรต์พรานหม่อง (ImageGen)</summary>
 
 > Use case: stylized-concept. Single transparent game-ready character cutout for Ayothaya Survival. Reference image is the exact in-game player sprite and is a stylistic model, not the character to reproduce. Draw a NEW Thai forest ranger NPC to stand right beside this hero. Match the reference's low-resolution 32-bit JRPG sprite dimensions and style again: chunky visible hard-edged pixels on a coherent square pixel grid, dark almost-black 1–2 pixel outer outline, broad shapes, two or three deliberate hard shading levels per material, compact stocky chibi body with the same large head (roughly one-third height), short sturdy legs and big feet, same slightly-downward three-quarter front camera, light from upper-left, full torso and both feet visible. Draw as if artist drew at only 48–54 pixels wide by 72 pixels high and nearest-neighbor upscaled. No tiny shaded fabric patterns, smooth gradients, hazy outline, painterly brushstrokes, high-res anime portrait or realistic anatomy. A distinct friendly middle-aged Thai woodland scout: short dark hair tied back with a pale ochre cloth headband, warm bronze skin, heavy expressive brows, small dark chin stubble, deep desaturated teal short cloth wrap tunic with warm beige overshoulder band and broad textured brown waist sash, indigo chong kraben trousers, dark brown footwraps, a compact light tan rectangular woven shoulder satchel clearly visible against the right hip, a simple recurved brown wooden short bow held upright down by his side with clearly visible silhouette and modest quiver behind shoulder. No metal armor, no spear, no shield. Neutral idle front-facing ready pose, subtly turned toward the viewer, readable in thumbnails and clearly recognizably old Siam fantasy, not a costume portrait. Center the only one isolated full-body sprite with roomy margins. Fully transparent alpha everywhere off the character; no ground or cast shadow, no colored aura, no borders, no symbols, no labels or text. Strong silhouette like the reference.
 

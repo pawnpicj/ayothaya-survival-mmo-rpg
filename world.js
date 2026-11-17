@@ -11,13 +11,13 @@
   const strikePhase=window.AyothayaGame.strikePhase;
   const ease=t=>t*t*(3-2*t);
   const skillEffects = {
-    heavy: { duration: .32, colors: ['#ffa735', '#fff3b3'] },
-    sweep: { duration: .42, colors: ['#e77130', '#ffe0a0'] },
-    guard: { duration: .50, colors: ['#4edcca', '#d7fff3'] },
-    heal: { duration: .75, colors: ['#83e16e', '#eaffb8'] },
-    dash: { duration: .36, colors: ['#7d9eff', '#e2faff'] },
-    thrust: { duration: .29, colors: ['#57c5ff', '#e4fbff'] },
-    interrupt: { duration: .36, colors: ['#ff7868', '#ffdfad'] },
+    heavy: { duration: .39, colors: ['#f59a36', '#fff3bc', '#7d331b'] },
+    sweep: { duration: .50, colors: ['#f38138', '#ffe5a7', '#803519'] },
+    guard: { duration: .53, colors: ['#52d9c4', '#d9fff1', '#205d64'] },
+    heal: { duration: .78, colors: ['#81db63', '#eaffb8', '#3a6232'] },
+    dash: { duration: .39, colors: ['#829cff', '#e0f4ff', '#3d4d95'] },
+    thrust: { duration: .32, colors: ['#67caff', '#e3fcff', '#226482'] },
+    interrupt: { duration: .38, colors: ['#ff786e', '#ffe0b2', '#8b353e'] },
   };
 
   function attackWeight(progress) {
@@ -663,13 +663,23 @@
         src:'assets/tha-phraya-east-gate.png',x1:.235,y1:.415,y2:.86,coastal:true,gateLabelDistance:.205,
         shore:[[.415,.69],[.431,.65],[.45,.631],[.474,.631],[.52,.684],[.57,.742],
           [.625,.81],[.68,.861],[.735,.902],[.79,.854],[.86,.82]],
-        doorway:{x:1556,y:364,rx:31,ry:50,
-          clip:[[1532,410],[1532,347],[1538,333],[1554,313],[1574,330],[1582,345],[1582,410]]}
+        doorways:{
+          'east-gate':{x:1556,y:364,rx:31,ry:50,
+            clip:[[1532,410],[1532,347],[1538,333],[1554,313],[1574,330],[1582,345],[1582,410]]},
+          'training-gate':{x:278,y:376,rx:34,ry:47,labelBelow:true,height:.125,
+            clip:[[278,329],[301,339],[312,358],[312,393],[300,413],[278,423],[255,413],[244,393],[244,357],[255,338]]}
+        }
       },
       ruins:{
         src:'assets/dong-chedi.png',x1:.196,x2:.918,y1:.433,y2:.884,gateLabelDistance:.199,
-        doorway:{x:180,y:544,rx:34,ry:58,
-          clip:[[152,597],[152,524],[157,506],[168,494],[181,483],[198,499],[207,520],[207,597]]}
+        doorways:{'west-gate':{x:180,y:544,rx:34,ry:58,
+          clip:[[152,597],[152,524],[157,506],[168,494],[181,483],[198,499],[207,520],[207,597]]}},
+        innerGateClip:[[1339,331],[1339,259],[1347,246],[1367,223],[1383,240],[1398,261],[1399,331]]
+      },
+      training:{
+        src:'assets/training-yard.png',x1:.266,x2:.88,y1:.32,y2:.86,gateLabelDistance:.285,
+        doorways:{'training-exit':{x:226,y:405,rx:64,ry:132,labelBelow:true,
+          clip:[[179,512],[181,355],[190,327],[211,295],[232,278],[252,293],[279,328],[292,352],[287,514]]}}
       }
     };
     for(const map of Object.values(maps)) {
@@ -677,11 +687,12 @@
       map.image.src=map.src;
     }
     let map=maps.village;
-    let approach=null;
+    let approaches=[];
     const vortexSprite=new Image();
     vortexSprite.src='assets/red-vortex.png';
     const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
     const activeEffects = [];
+    const heavyEffect = window.AyothayaHeavyEffect?.create();
     const atlas=new Image();
     let drawPlayerSprite=null;
     atlas.addEventListener('load',()=>{
@@ -690,6 +701,8 @@
     atlas.src='assets/sprites.png';
     const rangerSprite=new Image();
     rangerSprite.src='assets/ruins-ranger.png';
+    const dummySprite=new Image();
+    dummySprite.src='assets/training-dummy.png';
     const villageNpcSheet=new Image();
     villageNpcSheet.src='assets/village-npcs.png';
     const npcSprites={
@@ -738,16 +751,14 @@
       return fromX+(toX-fromX)*(v-fromY)/(toY-fromY);
     }
 
-    function normalized(x,y,view=map,gate=approach) {
+    function normalized(x,y,view=map,gates=approaches) {
       const {minX,maxX,minY,maxY}=bounds;
       const v=view.y1+(view.y2-view.y1)*(y-minY)/(maxY-minY);
       const edge=rightEdge(v,view);
+      const gate=gates.find(gate=>gate.outer>gate.inner ? x>gate.inner : x<gate.inner);
       if(gate) {
-        const east=gate.outer>gate.inner;
-        if(east ? x>gate.inner : x<gate.inner) {
-          const start=east?edge:view.x1;
-          return [start+(gate.viewX-start)*(x-gate.inner)/(gate.outer-gate.inner),v];
-        }
+        const start=gate.outer>gate.inner ? edge : view.x1;
+        return [start+(gate.viewX-start)*(x-gate.inner)/(gate.outer-gate.inner),v];
       }
       return [view.x1+(edge-view.x1)*(x-minX)/(maxX-minX),v];
     }
@@ -770,12 +781,10 @@
         const {minX,maxX,minY,maxY}=bounds;
         const edge=rightEdge(v,map);
         let x=minX+(u-map.x1)/(edge-map.x1)*(maxX-minX);
-        if(approach) {
-          const east=approach.outer>approach.inner;
-          if(east ? u>edge : u<map.x1) {
-            const start=east?edge:map.x1;
-            x=approach.inner+(u-start)/(approach.viewX-start)*(approach.outer-approach.inner);
-          }
+        const gate=approaches.find(gate=>gate.outer>gate.inner ? u>edge : u<map.x1);
+        if(gate) {
+          const start=gate.outer>gate.inner ? edge : map.x1;
+          x=gate.inner+(u-start)/(gate.viewX-start)*(gate.outer-gate.inner);
         }
         return {x,y:minY+(v-map.y1)/(map.y2-map.y1)*(maxY-minY)};
       }
@@ -862,10 +871,12 @@
     }
 
     function drawPortal(entity,sx,sy,time){
-      if(sceneMode && entity.automatic && approach) {
-        const height=scene.h*map.gateLabelDistance;
-        label(entity.name,sx,sy-height,'npc',clamp(zoom,.8,1.18));
-        hitAreas.push({kind:'portal',entity,sx,sy,radius:scene.w*.031,height:height+20*zoom});
+      const doorway=sceneMode&&map.doorways[entity.id];
+      if(doorway) {
+        const height=scene.h*(doorway.height??map.gateLabelDistance);
+        label(entity.name,sx,doorway.labelBelow ? sy+20*zoom : sy-height,'npc',clamp(zoom,.8,1.18));
+        hitAreas.push({kind:'portal',entity,sx,sy,radius:scene.w*.031,height:height+20*zoom,
+          bottom:doorway.labelBelow ? 23*zoom : 12});
         return;
       }
       const r=Math.max(10,15*zoom);
@@ -909,6 +920,32 @@
       ctx.restore();
     }
 
+    function drawInnerGate(entity,sx,sy,open) {
+      const clip=sceneMode&&map.innerGateClip;
+      const scale=clamp(zoom,.75,1.8);
+      if(clip&&!open){
+        ctx.save();
+        ctx.translate(scene.x,scene.y);
+        ctx.scale(scene.w/map.image.naturalWidth,scene.h/map.image.naturalHeight);
+        poly(ctx,clip,'rgba(29,24,17,.58)');
+        ctx.clip();
+        ctx.fillStyle='#241b13';
+        for(let x=1340;x<=1398;x+=9) ctx.fillRect(x,222,5,110);
+        for(const y of [247,278,312]) ctx.fillRect(1339,y,61,6);
+        ctx.fillStyle='#8c663f';
+        for(let x=1341;x<=1398;x+=9) ctx.fillRect(x,222,1.5,110);
+        for(const y of [247,278,312]) ctx.fillRect(1339,y,61,1.5);
+        ctx.fillStyle='#b68b46';
+        ctx.fillRect(1365,286,9,8);
+        ctx.fillStyle='#33251a';
+        ctx.fillRect(1369,288,1.5,4);
+        ctx.restore();
+      }
+      label(open?entity.name:entity.name+' · ล็อก',sx,sy+16*scale,'portal',scale);
+      const artScale=clip?scene.h/map.image.naturalHeight:scale;
+      hitAreas.push({kind:'portal',entity,sx,sy,radius:Math.max(20,artScale*31),height:clip?artScale*110:52*scale,bottom:22*scale});
+    }
+
     function drawGateGlow(portal,time,unlocked) {
       const [x,y]=project(portal.x,portal.y);
       const [edgeX]=project(portal.x-portal.reach,portal.y);
@@ -950,8 +987,12 @@
     }
 
     function drawActor(actor,kind,sx,sy,state,time){
-      if(kind==='portal'){drawPortal(actor,sx,sy,time);return;}
-      const dir=actor.dir||'s';
+      if(kind==='portal'){
+        const gate=state.zoneInfo.innerGate;
+        if(actor.id===gate?.id) drawInnerGate(actor,sx,sy,gate.open);
+        else drawPortal(actor,sx,sy,time);
+        return;
+      }
       const type=actor.sprite||actor.type||(kind==='npc'?'elder':'player');
       const walking=actor.moving||actor.action==='walk';
       const phase=time*11+(kind==='remote'?(actor.x+actor.y)*.01:0);
@@ -959,6 +1000,7 @@
       const action=actor.action||'idle';
       const dead=action==='death';
       const attack=action==='attack';
+      const dir=(attack&&actor.attackDir)||actor.dir||'s';
       const cast=action==='cast';
       const scale=clamp(zoom,.6,2.4);
       const baseSize=sceneMode?scene.h/510:scale;
@@ -972,9 +1014,9 @@
       const swing=attack?attackWeight(progress):0;
       const pose=dir==='nw'?'w':dir==='ne'?'e':dir==='sw'?'w':dir==='se'?'e':dir;
       const atlasEntry=spritesheet[type==='player'?pose:type];
-      const baseHeight=kind==='enemy'?(type==='guardian'?.9:type==='tamarind'||type==='monkey'?.5:.66):.77;
+      const baseHeight=kind==='enemy'?(type==='guardian'||type==='dummy'?.9:type==='tamarind'||type==='monkey'?.5:.66):.77;
       const heightOnScreen=spriteSize*baseHeight;
-      const radius=spriteSize*(type==='guardian'?.46:kind==='enemy'?.29:.255);
+      const radius=spriteSize*(type==='guardian'?.46:type==='dummy'?.37:kind==='enemy'?.29:.255);
       if (state.targetId===actor.id&&kind==='enemy'&&!dead) {
         const t=(Math.cos(time*6)+1)*.5;
         shadow(sx,sy+2,radius+3+2*t,5+1.5*t,'rgba(214,98,53,.40)');
@@ -986,7 +1028,7 @@
       }
       shadow(sx,sy,Math.max(7,radius*.84),Math.max(2,4*scale));
       if (kind === 'player' && !dead && actor.guardTime > 0) drawGuard(actor, time, unit);
-      const bounce=dead?0:attack?Math.max(0,swing)*unit*(kind==='enemy'?7:3)
+      const bounce=dead||type==='dummy'?0:attack?Math.max(0,swing)*unit*(kind==='enemy'?7:3)
         :walking?Math.abs(Math.sin(phase))*2.8*scale:Math.sin(time*2.8+actor.x)*scale*.95;
       ctx.save();
       ctx.translate(Math.round(sx),Math.round(sy-bounce));
@@ -1003,10 +1045,16 @@
       const armedPlayer=type==='player'&&drawPlayerSprite;
       const npc=kind==='npc'?npcSprites[actor.id]:null;
       if(armedPlayer) {
-        drawPlayerSprite(ctx,actor,{dir,bearing,walking:walking&&!dead,phase,progress:attack?progress:null,size:spriteSize});
+        drawPlayerSprite(ctx,actor,{dir,bearing,walking:walking&&!dead,phase,progress:attack?progress:null,size:spriteSize,heavyEffect});
       } else if(npc?.image.complete && npc.image.naturalWidth>=(npc.column+1)*96 && npc.image.naturalHeight===96) {
         const size=Math.round(spriteSize);
+        ctx.imageSmoothingEnabled=false;
         ctx.drawImage(npc.image,npc.column*96,0,96,96,-Math.round(size/2),-Math.round(86*size/96),size,size);
+      } else if(type==='dummy' && dummySprite.complete && dummySprite.naturalWidth) {
+        const h=Math.round(heightOnScreen);
+        const w=Math.round(h*dummySprite.naturalWidth/dummySprite.naturalHeight);
+        ctx.imageSmoothingEnabled=false;
+        ctx.drawImage(dummySprite,-Math.round(w/2),-h,w,h);
       } else if(type==='guardian' && guardianSprite) {
         const {sprite,anchor}=guardianSprite;
         const w=Math.round(heightOnScreen*sprite.width/sprite.height);
@@ -1048,12 +1096,12 @@
         const nameY=sy-heightOnScreen-4*scale;
         const title=kind==='enemy'&&actor.level?`${actor.name} · Lv.${actor.level}`:actor.name;
         const nearPlayer = Math.hypot(actor.x - state.player.x, actor.y - state.player.y) <= (aspect < 1.2 ? 152 : 205);
-        if (kind !== 'enemy' || state.targetId === actor.id || nearPlayer) label(title,sx,nameY,kind,clamp(scale,.76,1.10));
-        if(kind==='npc'&&actor.type==='elder'&&['available','ready'].includes(state.quest?.status)){
-          const y=nameY-16*scale+Math.sin(time*3.5)*2*scale;
-          poly(ctx,[[sx,y-7*scale],[sx+6*scale,y],[sx,y+7*scale],[sx-6*scale,y]],'#f4cc7d','#6b4932');
-          ctx.fillStyle='#624527';
-          ctx.fillRect(sx-1,y-3,2,4);ctx.fillRect(sx-1,y+2,2,1);
+        if (kind !== 'enemy' || type === 'dummy' || state.targetId === actor.id || nearPlayer) label(title,sx,nameY,kind,clamp(scale,.76,1.10));
+        const quest=state.trackedQuest;
+        if(kind==='npc'&&actor.id===quest?.npcId&&['available','ready'].includes(quest.status)){
+          const markerScale=clamp(scale,.85,1.8);
+          const bob=reducedMotion.matches?0:Math.sin(time*3.5)*2*markerScale;
+          drawQuestMarker(sx,nameY-16*markerScale+bob,markerScale,quest.status==='ready');
         }
         if(kind==='enemy'&&actor.hp<actor.maxHp&&actor.hp>0){
           ctx.fillStyle='#382c28';ctx.fillRect(sx-12*scale,sy+5*scale,24*scale,3*scale);
@@ -1061,6 +1109,20 @@
         }
       }
       if(kind==='enemy'||kind==='npc') hitAreas.push({kind,entity:actor,sx,sy,radius:Math.max(13,radius),height:heightOnScreen*1.22});
+    }
+
+    function drawQuestMarker(x,y,scale,ready) {
+      ctx.save();
+      ctx.font = '900 ' + Math.round(23 * scale) + 'px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 3.5 * scale;
+      ctx.strokeStyle = ready ? '#18351e' : '#513514';
+      ctx.fillStyle = ready ? '#a5f17b' : '#ffdf60';
+      ctx.strokeText('?',x,y);
+      ctx.fillText('?',x,y);
+      ctx.restore();
     }
 
     function drawSlash(x,y,bearing,progress,unit,kind,style) {
@@ -1102,44 +1164,91 @@
     }
 
     function playSkillEffect(event) {
-      const impact = event.type === 'damage';
       const skill = event.guarded ? 'guard' : event.skill;
       const visual = skillEffects[skill];
-      if (!visual || (event.type === 'skill' && !['guard', 'heal'].includes(skill))) return;
-      activeEffects.push({ ...event, skill, colors: visual.colors, start: performance.now() / 1000,
-        duration: impact ? .30 : visual.duration });
+      if (!visual) return;
+      const heavyImpact = skill === 'heavy' && heavyEffect?.ready && drawPlayerSprite;
+      if (heavyImpact && (event.type !== 'skill-strike' || !event.contact)) return;
+      const charge = event.type === 'skill' && event.windup > 0;
+      if (event.type === 'skill' && !charge && skill !== 'guard' && skill !== 'heal') return;
+      const duration = heavyImpact ? window.AyothayaHeavyEffect.impactDuration
+        : charge ? event.windup : event.type === 'damage' ? .30 : visual.duration;
+      activeEffects.push({ ...event, skill, colors: visual.colors, charge, heavyImpact: Boolean(heavyImpact), duration,
+        start: performance.now() / 1000 });
     }
 
     function effectRing(x, y, radius, angle, span, colors, unit) {
       ctx.beginPath();
-      for (let index = 0; index <= 28; index++) {
-        const theta = angle + span * index / 28;
+      for (let index = 0; index <= 32; index++) {
+        const theta = angle + span * index / 32;
         const [sx, sy] = project(x + radius * Math.cos(theta), y + radius * Math.sin(theta), 2);
         if (index === 0) ctx.moveTo(sx, sy);
         else ctx.lineTo(sx, sy);
       }
+      ctx.strokeStyle = colors[2];
+      ctx.lineWidth = Math.max(1, 6 * unit);
+      ctx.stroke();
       ctx.strokeStyle = colors[0];
-      ctx.lineWidth = Math.max(1, 4 * unit);
+      ctx.lineWidth = Math.max(1, 3.4 * unit);
       ctx.stroke();
       ctx.strokeStyle = colors[1];
-      ctx.lineWidth = Math.max(.9, 1.25 * unit);
+      ctx.lineWidth = Math.max(.8, 1.05 * unit);
       ctx.stroke();
+    }
+
+    function glow(point, radius, color) {
+      const [x, y] = point;
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      gradient.addColorStop(0, color + 'a0');
+      gradient.addColorStop(.44, color + '40');
+      gradient.addColorStop(1, color + '00');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    }
+
+    function pixelSpark(x, y, size, color) {
+      const edge = Math.max(1, Math.round(size));
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.round(x) - edge, Math.round(y), edge * 3, edge);
+      ctx.fillRect(Math.round(x), Math.round(y) - edge, edge, edge * 3);
+    }
+
+    function shield(point, unit, colors, filled) {
+      const [x, y] = point;
+      const points = [[0,-23],[21,-14],[19,5],[10,19],[0,26],[-10,19],[-19,5],[-21,-14]];
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(unit, unit);
+      const ring = new Path2D();
+      for (const [index, [px, py]] of points.entries()) {
+        if (index === 0) ring.moveTo(px, py);
+        else ring.lineTo(px, py);
+      }
+      ring.closePath();
+      if (filled) {
+        ctx.fillStyle = colors[0] + '36';
+        ctx.fill(ring);
+      }
+      ctx.strokeStyle = colors[2];
+      ctx.lineWidth = 4.5;
+      ctx.stroke(ring);
+      ctx.strokeStyle = colors[0];
+      ctx.lineWidth = 2.5;
+      ctx.stroke(ring);
+      ctx.strokeStyle = colors[1];
+      ctx.lineWidth = 1;
+      ctx.stroke(ring);
+      for (const index of [0, 2, 4, 6]) pixelSpark(...points[index], 1, colors[1]);
+      ctx.restore();
     }
 
     function drawGuard(actor, time, unit) {
       const colors = skillEffects.guard.colors;
-      const pulse = reducedMotion.matches ? .65 : .63 + .13 * Math.sin(time * 4);
-      const [x, y] = project(actor.x, actor.y, 20);
+      const pulse = reducedMotion.matches ? .62 : .59 + .11 * Math.sin(time * 4);
       ctx.save();
       ctx.globalAlpha = Math.min(1, actor.guardTime * 3) * pulse;
-      effectRing(actor.x, actor.y, 33, 0, TAU, colors, unit * .72);
-      ctx.strokeStyle = colors[1];
-      ctx.lineWidth = 1.8 * unit;
-      for (const angle of [0, Math.PI]) {
-        ctx.beginPath();
-        ctx.ellipse(x, y, 27 * unit, 28 * unit, 0, angle - .66, angle + .66);
-        ctx.stroke();
-      }
+      effectRing(actor.x, actor.y, 28, -.12, TAU, colors, unit * .60);
+      shield(project(actor.x, actor.y, 28), unit, colors, true);
       ctx.restore();
     }
 
@@ -1149,16 +1258,22 @@
       ctx.rotate(bearing);
       ctx.scale(unit, unit);
       ctx.beginPath();
-      ctx.moveTo(13, -30);
-      ctx.quadraticCurveTo(73, -3, 28, 30);
-      ctx.quadraticCurveTo(43, 3, 13, -30);
+      ctx.moveTo(3,-33);
+      ctx.quadraticCurveTo(52,-34,63,-4);
+      ctx.quadraticCurveTo(69,19,28,37);
+      ctx.quadraticCurveTo(48,17,44,0);
+      ctx.quadraticCurveTo(37,-22,3,-33);
       ctx.fillStyle = colors[0];
       ctx.fill();
+      ctx.strokeStyle = colors[2];
+      ctx.lineWidth = 2.1;
+      ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(26, -22);
-      ctx.quadraticCurveTo(62, -2, 36, 22);
+      ctx.moveTo(16,-29);
+      ctx.quadraticCurveTo(53,-26,57,-4);
+      ctx.quadraticCurveTo(63,16,39,29);
       ctx.strokeStyle = colors[1];
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 3.6;
       ctx.stroke();
       ctx.restore();
     }
@@ -1170,10 +1285,124 @@
       ctx.save();
       ctx.translate(...from);
       ctx.rotate(Math.atan2(dy, dx));
-      poly(ctx, [[0, 0], [length * .65, -thickness], [length, 0], [length * .65, thickness]], colors[0]);
-      poly(ctx, [[length * .18, 0], [length * .71, -thickness * .34], [length, 0],
-        [length * .71, thickness * .34]], colors[1]);
+      ctx.lineWidth = Math.max(.8, thickness * .14);
+      poly(ctx, [[0,0],[length * .56,-thickness],[length,0],[length * .56,thickness]], colors[0], colors[2]);
+      poly(ctx, [[length * .20,0],[length * .69,-thickness * .27],[length,0],
+        [length * .69,thickness * .27]], colors[1]);
       ctx.restore();
+    }
+
+    function sparks(point, motion, reach, unit, colors, count, bearing = 0, span = TAU) {
+      const [x, y] = point;
+      for (let index = 0; index < count; index++) {
+        const angle = bearing + span * ((index * .618 + .16) % 1 - .5);
+        const radius = reach * (.38 + .62 * motion) * (.64 + (index % 4) * .14);
+        const dx = Math.cos(angle) * radius;
+        const dy = Math.sin(angle) * radius;
+        const size = (index % 3 === 0 ? 2 : 1) * unit;
+        pixelSpark(x + dx, y + dy, size, colors[index % 2]);
+      }
+    }
+
+    function drawSkillCharge(effect, motion, unit, still) {
+      const { x, y, colors } = effect;
+      const center = project(x, y, 33);
+      ctx.globalAlpha *= .62;
+      glow(center, 25 * unit, colors[0]);
+      sparks(center, 1 - motion, 27 * unit, unit, colors, still ? 3 : 6);
+    }
+
+    function drawSkillImpact(effect, motion, unit, still) {
+      const { x, y, colors, guarded, critical } = effect;
+      const point = project(x, y, guarded ? 29 : 19);
+      glow(point, (19 + 21 * motion) * unit, colors[0]);
+      if (guarded) shield(point, unit * (.70 + .28 * motion), colors, false);
+      for (let index = 0; index < (still ? 3 : 7); index++) {
+        const angle = index * 2.4;
+        const extent = (12 + 30 * motion) * unit * (.63 + (index % 3) * .18);
+        const dx = Math.cos(angle) * extent, dy = Math.sin(angle) * extent;
+        bladeStreak([point[0] + dx * .42, point[1] + dy * .42],
+          [point[0] + dx, point[1] + dy], (critical ? 3.2 : 2.1) * unit, colors);
+      }
+      sparks(point, motion, 49 * unit, unit, colors, still ? 3 : 8);
+    }
+
+    function drawSupportEffect(effect, player, motion, unit, still) {
+      const { skill, colors } = effect;
+      const { x, y } = player;
+      const radius = 22 + 26 * ease(motion);
+      effectRing(x, y, radius, 0, TAU, colors, unit);
+      if (skill === 'guard') {
+        for (let segment = 0; segment < 6; segment++) {
+          const angle = segment * TAU / 6;
+          effectRing(x, y, radius + 7, angle - .29, .58, colors, unit * .66);
+        }
+        shield(project(x, y, 29), unit * (1.1 + .2 * motion), colors, false);
+        return;
+      }
+      glow(project(x, y, 30), 38 * unit, colors[0]);
+      for (let index = 0; index < (still ? 4 : 9); index++) {
+        const angle = index * 2.4 + 2.8 * motion;
+        const offset = 15 + (index % 3) * 9;
+        const point = project(x + Math.cos(angle) * offset, y + Math.sin(angle) * offset,
+          13 + (index % 4) * 9 + 33 * motion);
+        pixelSpark(...point, (index % 3 === 0 ? 2.5 : 1.5) * unit, colors[index % 2]);
+      }
+    }
+
+    function drawSweep(effect, motion, unit, still) {
+      const { origin: { x, y }, range, colors } = effect;
+      const radius = range * (.52 + .48 * ease(motion));
+      const turn = motion * Math.PI * 1.15;
+      for (const offset of [0, Math.PI]) {
+        effectRing(x, y, radius, turn + offset, Math.PI * .87, colors, unit * 1.25);
+        effectRing(x, y, radius * .77, turn + offset - .33, Math.PI * .52, colors, unit * .55);
+      }
+      const count = still ? 6 : 14;
+      for (let index = 0; index < count; index++) {
+        const angle = index * TAU / count + turn;
+        const point = project(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius,
+          5 + (index % 3) * 7 + motion * 12);
+        pixelSpark(...point, (1 + index % 2) * unit, colors[index % 2]);
+      }
+    }
+
+    function drawDirectedSkill(effect, motion, unit, still) {
+      const { skill, colors, origin, arrival, contact, range, dir } = effect;
+      const [dx, dy] = directions[dir] || directions.s;
+      const directionScale = range / Math.hypot(dx, dy);
+      const from = project(origin.x, origin.y, 23);
+      const aim = contact ? project(contact.x, contact.y, 21)
+        : project(origin.x + dx * directionScale, origin.y + dy * directionScale, 23);
+      const facing = Math.hypot(aim[0] - from[0], aim[1] - from[1]) > 3 ? aim
+        : project(origin.x + dx * 24, origin.y + dy * 24, 23);
+      const bearing = Math.atan2(facing[1] - from[1], facing[0] - from[0]);
+      const side = [-Math.sin(bearing), Math.cos(bearing)];
+      const offset = (point, distance) => [point[0] + side[0] * distance * unit, point[1] + side[1] * distance * unit];
+      if (skill === 'thrust') {
+        const end = [aim[0] + Math.cos(bearing) * 8 * unit, aim[1] + Math.sin(bearing) * 8 * unit];
+        bladeStreak(from, end, (11 - 5 * motion) * unit, colors);
+        for (const wing of [-1, 1]) bladeStreak(offset(from, 8 * wing), offset(end, 3 * wing), unit * 2, colors);
+        if (contact) sparks(aim, motion, 31 * unit, unit, colors, still ? 3 : 7, bearing, 1.9);
+      } else if (skill === 'dash') {
+        const end = project(arrival.x, arrival.y, 23);
+        for (const wing of [-1, 1]) bladeStreak(offset(from, 11 * wing), offset(end, 6 * wing), unit * 3, colors);
+        bladeStreak(from, end, (15 - 7 * motion) * unit, colors);
+        glow(end, 31 * unit, colors[0]);
+        crescent(end, bearing + .12, unit * .76, colors);
+        sparks(end, motion, 36 * unit, unit, colors, still ? 4 : 9, bearing + Math.PI, 2.4);
+      } else if (skill === 'interrupt') {
+        const [x, y] = aim;
+        const reach = (13 + 11 * ease(motion)) * unit;
+        glow(aim, 33 * unit, colors[0]);
+        bladeStreak([x - reach, y - reach], [x + reach, y + reach], 5 * unit, colors);
+        bladeStreak([x + reach, y - reach], [x - reach, y + reach], 4 * unit, colors);
+        sparks(aim, motion, 32 * unit, unit, colors, still ? 3 : 7);
+      } else {
+        const sweepPoint = [from[0] + Math.cos(bearing) * 7 * unit, from[1] + Math.sin(bearing) * 7 * unit];
+        crescent(sweepPoint, bearing - .43 + motion * .82, unit * (1 + motion * .2), colors);
+        sparks(contact ? aim : sweepPoint, motion, 42 * unit, unit, colors, still ? 4 : 8, bearing, 2.3);
+      }
     }
 
     function drawSkillEffects(player, time) {
@@ -1182,71 +1411,25 @@
       const still = reducedMotion.matches;
       for (let index = activeEffects.length - 1; index >= 0; index--) {
         const effect = activeEffects[index];
-        const age = Math.max(0, time - effect.start) / effect.duration;
+        const elapsed = Math.max(0, time - effect.start);
+        const age = elapsed / effect.duration;
         if (age >= 1) {
           activeEffects.splice(index, 1);
           continue;
         }
-        const motion = still ? .38 : age;
-        const { skill, colors } = effect;
-        ctx.save();
-        ctx.globalAlpha = (1 - age) ** .8;
-        if (effect.type === 'damage') {
-          const [x, y] = project(effect.x, effect.y, effect.guarded ? 26 : 17);
-          const reach = (11 + 35 * motion) * unit;
-          ctx.translate(x, y);
-          for (let spark = 0; spark < (still ? 4 : 7); spark++) {
-            const angle = spark * 2.4;
-            const extent = reach * (.55 + (spark % 3) * .21);
-            const tip = [Math.cos(angle) * extent, Math.sin(angle) * extent];
-            bladeStreak(tip.map(axis => axis * .43), tip, (effect.critical ? 3 : 2) * unit, colors);
-          }
-        } else if (skill === 'guard' || skill === 'heal') {
-          const { x, y } = player;
-          const healing = skill === 'heal';
-          effectRing(x, y, (healing ? 21 : 27) + 27 * motion, 0, TAU, colors, unit);
-          if (healing) {
-            for (let leaf = 0; leaf < (still ? 4 : 8); leaf++) {
-              const angle = leaf * 2.4 + motion * 2;
-              const radius = 17 + (leaf % 3) * 7;
-              const [sx, sy] = project(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius,
-                12 + (leaf % 4) * 7 + 27 * motion);
-              const size = (3.5 + (leaf % 2) * 1.5) * unit;
-              poly(ctx, [[sx - size, sy + size], [sx - size * .5, sy - size * .4], [sx + size, sy - size],
-                [sx + size * .45, sy + size * .45]], colors[leaf % 2]);
-            }
-          }
-        } else if (skill === 'sweep') {
-          const { x, y } = effect.origin;
-          const radius = effect.range * (.44 + .60 * ease(motion));
-          const turn = motion * Math.PI * 1.4;
-          effectRing(x, y, radius, turn, TAU * .42, colors, unit);
-          effectRing(x, y, radius, turn + Math.PI, TAU * .42, colors, unit);
-        } else {
-          const { origin, arrival, contact, range, dir } = effect;
-          const [dx, dy] = directions[dir] || directions.s;
-          const [x, y] = project(origin.x, origin.y, 22);
-          const [facingX, facingY] = project(origin.x + dx * 24, origin.y + dy * 24, 22);
-          const aim = contact ? project(contact.x, contact.y, 19) :
-            project(origin.x + dx * range / Math.hypot(dx, dy), origin.y + dy * range / Math.hypot(dx, dy), 22);
-          const bearing = Math.hypot(aim[0] - x, aim[1] - y) > 3 ? Math.atan2(aim[1] - y, aim[0] - x)
-            : Math.atan2(facingY - y, facingX - x);
-          if (skill === 'thrust') {
-            bladeStreak([x, y], aim, (9 - 5 * motion) * unit, colors);
-          } else if (skill === 'dash') {
-            const end = project(arrival.x, arrival.y, 22);
-            bladeStreak([x, y], end, (14 - 8 * motion) * unit, colors);
-            crescent(end, bearing + .2, unit * .82, colors);
-          } else if (skill === 'interrupt') {
-            const [cx, cy] = contact ? aim : [x + Math.cos(bearing) * 35 * unit, y + Math.sin(bearing) * 35 * unit];
-            for (const slope of [-1, 1]) {
-              const reach = (13 + 11 * motion) * unit;
-              bladeStreak([cx - reach, cy - slope * reach], [cx + reach, cy + slope * reach], 6 * unit, colors);
-            }
-          } else {
-            crescent([x, y], bearing - .38 + motion * .75, unit * (1 + motion * .3), colors);
-          }
+        if (effect.heavyImpact) {
+          const [x, y] = project(effect.contact.x, effect.contact.y);
+          heavyEffect.drawImpact(ctx, elapsed, x, y - 23 * unit, unit);
+          continue;
         }
+        const motion = still ? .48 : age;
+        ctx.save();
+        ctx.globalAlpha = (still ? .72 : 1) * (effect.charge ? Math.sin(age * Math.PI) : (1 - age) ** .8);
+        if (effect.charge) drawSkillCharge(effect, motion, unit, still);
+        else if (effect.type === 'damage') drawSkillImpact(effect, motion, unit, still);
+        else if (effect.skill === 'guard' || effect.skill === 'heal') drawSupportEffect(effect, player, motion, unit, still);
+        else if (effect.skill === 'sweep') drawSweep(effect, motion, unit, still);
+        else drawDirectedSkill(effect, motion, unit, still);
         ctx.restore();
       }
     }
@@ -1296,27 +1479,29 @@
         zoneId=state.zone;
         map=maps[zoneId]||maps.village;
       }
-      approach=state.zoneInfo.gateApproach ?? null;
+      approaches=state.zoneInfo.gateApproaches ?? [];
       size();
       sceneMode=map.image.complete&&map.image.naturalWidth>0;
       updateCamera(state.player,time,newZone);
       ctx.fillStyle='#263b2d';
       ctx.fillRect(0,0,width,height);
       const ruins=zoneId==='ruins';
+      const training=zoneId==='training';
       let zone=null;
       if(sceneMode){ ctx.drawImage(map.image,Math.round(scene.x),Math.round(scene.y),Math.ceil(scene.w),Math.ceil(scene.h)); }
-      else {
+      else if (!training) {
         if(!zones.has(zoneId)) zones.set(zoneId,createZone(ruins));
         zone=zones.get(zoneId);
         stampedTerrain(zone.terrain);
       }
-      drawWater(time,ruins);
+      if (!training) drawWater(time,ruins);
       const portals=state.portals||[];
-      if(sceneMode && approach) {
+      if(sceneMode) {
         for(const portal of portals) {
-          if(!portal.automatic) continue;
+          const doorway=map.doorways[portal.id];
+          if(!doorway) continue;
           const unlocked=!portal.quest||state.quest.status==='completed';
-          if(unlocked && map.doorway) drawGateVortex(map.doorway,time);
+          if(unlocked) drawGateVortex(doorway,time);
           drawGateGlow(portal,time,unlocked);
         }
       }
@@ -1354,7 +1539,7 @@
       const sx=(clientX-r.left)*width/r.width,sy=(clientY-r.top)*height/r.height;
       for(let i=hitAreas.length-1;i>=0;i--){
         const area=hitAreas[i];
-        if(Math.abs(sx-area.sx)<=area.radius&&sy>=area.sy-area.height&&sy<=area.sy+12){
+        if(Math.abs(sx-area.sx)<=area.radius&&sy>=area.sy-area.height&&sy<=area.sy+(area.bottom??12)){
           return {x:area.entity.x,y:area.entity.y,kind:area.kind,entity:area.entity};
         }
       }
@@ -1375,7 +1560,7 @@
       const c=mini.getContext('2d');
       const {width:w,height:h}=mini;
       const view=maps[state.zone]||maps.village;
-      const gate=state.zoneInfo.gateApproach ?? null;
+      const gates=state.zoneInfo.gateApproaches ?? [];
       const imageMode=view.image.complete&&view.image.naturalWidth>0;
       c.imageSmoothingEnabled=true;
       if(imageMode) {
@@ -1391,14 +1576,17 @@
       c.fillStyle='rgba(23,36,23,.18)';
       c.fillRect(0,0,w,h);
       const marker=(entity,fill,radius)=>{
-        const [u,v]=imageMode?normalized(entity.x,entity.y,view,gate):[entity.x/WORLD_W,entity.y/WORLD_H];
+        const [u,v]=imageMode?normalized(entity.x,entity.y,view,gates):[entity.x/WORLD_W,entity.y/WORLD_H];
         c.beginPath();c.arc(u*w,v*h,radius,0,TAU);
         c.fillStyle=fill;c.fill();
         if(radius>2){c.lineWidth=1;c.strokeStyle='#25382d';c.stroke();}
       };
       for(const enemy of state.enemies||[]) if(enemy.visible!==false&&enemy.hp>0) marker(enemy,'#db9261',1.35);
       for(const npc of state.npcs||[]) marker(npc,'#efd163',2.1);
-      for(const portal of state.portals||[]) marker(portal,'#b8ece3',2.3);
+      for(const portal of state.portals||[]) {
+        const gate=state.zoneInfo.innerGate;
+        marker(portal,portal.id===gate?.id&&!gate.open?'#e2ad68':'#b8ece3',2.3);
+      }
       for(const other of state.remotePlayers||[]) marker(other,'#a7d9ec',2.1);
       marker(state.player,'#fff4c8',3.2);
     }

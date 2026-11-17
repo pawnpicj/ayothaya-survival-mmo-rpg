@@ -456,6 +456,8 @@
   function create(canvas, requestDraw = () => {}) {
     const ctx = canvas.getContext('2d');
     const images = new Map();
+    const heavy = window.AyothayaHeavyEffect;
+    const heavyEffect = heavy?.create(requestDraw);
 
     function load(src) {
       if (images.has(src)) return images.get(src);
@@ -473,6 +475,34 @@
       images.set(src, record);
       image.src = src;
       return record;
+    }
+
+    function drawHeavyPreview(record, actor, elapsed, width, height, groundY, zoom, palette) {
+      const unit = Math.min(height / 160, width / 240) * zoom;
+      const playerX = width / 2 - 22 * unit;
+      const targetX = width / 2 + 19 * unit;
+      const swingDuration = heavy?.previewSwingDuration ?? .46;
+      const progress = elapsed < swingDuration ? elapsed / swingDuration : null;
+      const [lean, lift] = progress === null ? BASE_POSE : poseFor('attack', progress, actorTraits(actor));
+      const sinceHit = elapsed - swingDuration * window.AyothayaGame.strikePhase;
+      const recoil = sinceHit >= 0 && sinceHit < .13 ? Math.sin(sinceHit / .13 * Math.PI) : 0;
+      const targetSize = Math.round(58 * unit);
+      const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
+
+      paintShadow(ctx, playerX, groundY, 30 * unit, 48 * unit, 0, palette, 'idle', 0);
+      paintShadow(ctx, targetX, groundY, 30 * unit, 32 * unit, 0, palette, 'idle', 0);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      if (recoil) ctx.filter = 'brightness(1.28)';
+      ctx.drawImage(record.image, 192, 96, 96, 96, Math.round(targetX - targetSize / 2 + 4 * unit * recoil),
+        Math.round(groundY - targetSize * 86 / 96), targetSize, targetSize);
+      ctx.filter = 'none';
+      ctx.translate(Math.round(playerX + lean * 48 * unit), Math.round(groundY + lift * 48 * unit));
+      drawPlayer(ctx, { ...actor, attackStyle: 'heavy' }, {
+        dir: 'e', bearing: 0, walking: false, phase: 0, progress, size: 64 * unit, heavyEffect,
+      });
+      ctx.restore();
+      heavyEffect?.drawImpact(ctx, sinceHit, targetX, groundY - 23 * unit, unit);
     }
 
     function draw(actor, motion, elapsed, { zoom = 1, ground = 'dark' } = {}) {
@@ -499,6 +529,11 @@
         ctx.font = '13px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(record.state === 'error' ? 'โหลดภาพตัวละครไม่สำเร็จ' : 'กำลังโหลดภาพตัวละคร…', width / 2, height / 2);
+        return;
+      }
+
+      if (motion?.id === 'heavy' && actor.weapon) {
+        drawHeavyPreview(record, actor, elapsed, width, height, groundY, zoom, palette);
         return;
       }
 

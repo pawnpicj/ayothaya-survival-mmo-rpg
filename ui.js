@@ -6,9 +6,13 @@
   const minimap = $("minimap");
   const dialog = $("dialog");
   const autoToggle = $("auto-toggle");
+  const questTracker = $("quest-tracker");
+  const itemShortcuts = [...document.querySelectorAll('[data-action="item-shortcut"]')];
+  const itemSlotNames = ["ช่องบน", "ช่องล่าง"];
   const game = window.AyothayaGame.create();
   const { state } = game;
   const world = window.AyothayaWorld.create(canvas);
+  const skillAudio = window.AyothayaSkillAudio?.create();
   const keys = new Set();
   const skillButtons = [...document.querySelectorAll("[data-skill]")];
   const hits = [];
@@ -22,6 +26,10 @@
   let lastRender = 0;
   let skillTab = "active";
   let selectedSlot = 1;
+  let selectedItem = null;
+  let sortInventory = false;
+  let cardsOnly = false;
+  let pendingStats = {};
 
   const text = (id, value) => {
     const element = $(id);
@@ -37,31 +45,55 @@
   const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (character) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const fmt = (value) => Math.floor(value ?? 0).toLocaleString("en-US");
+  const skillRangeText = ({ strike }) => strike ? (strike.area ? "รัศมี " : "ระยะ ") + strike.range + " หน่วย" : "";
   const target = () => state.enemies.find((enemy) => enemy.id === state.targetId && enemy.hp > 0);
-  const questStatus = {
-    available: "คุยกับลุงขามเพื่อรับภารกิจ",
-    active: "ปราบลิงป่า Lv. 1 ในทุ่งริมน้ำ",
-    ready: "กลับไปรายงานลุงขาม",
-    completed: "ส่งภารกิจเรียบร้อย",
-  };
+  const questActionLabels = { available: "รับเควสต์", ready: "สำเร็จเควสต์" };
   const attributes = {
     STR: "พลังโจมตี", AGI: "ความคล่องตัว", VIT: "พลังชีวิต",
     INT: "พลังวิชา", DEX: "ความแม่นยำ", LUK: "โชค",
   };
   const itemIcons = { potion: "leaf", elixir: "flame", sword: "blade", seed: "leaf",
-    claw: "swords", dust: "star", card: "quest", seal: "shield" };
+    claw: "swords", dust: "star", card: "quest", seal: "shield", scroll: "quest" };
+  const inventoryArt = [
+    "potion", "elixir", "rusty_sword", "bronze_sword", "tamarind_core",
+    "monkey_claw", "spirit_dust", "tamarind_card", "monkey_card", "guardian_seal",
+  ];
   const skillIcon = (name) => '<svg class="icon" aria-hidden="true"><use href="#i-' + name + '"></use></svg>';
 
   function renderHUD() {
-    const { player, quest, zoneInfo } = state;
+    const { player, trackedQuest: quest, zoneInfo } = state;
+    const training = zoneInfo.id === "training";
+    const cooldowns = game.skillCooldownsEnabled();
+    const manaCosts = game.skillManaCostsEnabled();
+    setHidden("training-controls", !training);
+    setHidden("quest-tracker", training);
+    if (training) {
+      for (const [id, enabled] of [["training-cooldown", cooldowns], ["training-mana", manaCosts]]) {
+        const button = $(id);
+        const pressed = String(enabled);
+        if (button.getAttribute("aria-pressed") !== pressed) button.setAttribute("aria-pressed", pressed);
+        text(id + "-state", enabled ? "เปิด" : "ปิด");
+      }
+    }
     text("zone-name", zoneInfo.name);
     text("zone-range", zoneInfo.levels);
     text("map-coords", Math.round(player.x / 10) + ", " + Math.round(player.y / 10));
     text("gold", fmt(player.gold));
+    renderItemShortcuts(player);
     text("quest-title", quest.title);
-    text("quest-objective", quest.status === "completed" && state.zone === "ruins"
-      ? "สำรวจดงเจดีย์ร้าง" : quest.objective ?? questStatus[quest.status] ?? quest.description);
-    text("quest-count", quest.status === "available" ? "รับเควสต์" : quest.status === "completed" ? "สำเร็จ" : quest.count + " / " + quest.needed);
+    const multiGoalProgress = quest.goals && quest.status === "active";
+    text("quest-objective", multiGoalProgress ? game.questProgress(quest) : quest.objective);
+    const questAction = questActionLabels[quest.status];
+    text("quest-count", questAction ?? (quest.status === "completed" ? "ส่งแล้ว" : multiGoalProgress ? "" : game.questProgress(quest)));
+    if (questTracker.dataset.status !== quest.status || questTracker.dataset.owner !== quest.npcId) {
+      questTracker.dataset.status = quest.status;
+      questTracker.dataset.owner = quest.npcId;
+      questTracker.dataset.action = questAction ? "quest-owner" : "quests";
+      const owner = state.npcs.find(npc => npc.id === quest.npcId);
+      const detail = questAction && owner ? questAction + " · เดินไปหา" + owner.name : "เปิดสมุดภารกิจ";
+      questTracker.setAttribute("aria-label", detail);
+      questTracker.title = detail;
+    }
     text("player-name", player.name || "นักเดินทาง");
     text("player-job", player.job || "ดาบอโยธยา");
     text("base-level", fmt(player.level));
@@ -80,29 +112,39 @@
 
     const enemy = target();
     setHidden("target", !enemy);
+    setHidden("training-range", !training || !enemy);
     if (enemy) {
       text("target-name", enemy.name);
-      text("target-level", "Lv. " + enemy.level);
+      text("target-level", enemy.level ? "Lv. " + enemy.level : "");
       text("target-hp-text", fmt(enemy.hp) + " / " + fmt(enemy.maxHp));
       fill("target-hp-fill", enemy.hp, enemy.maxHp);
+      if (training) {
+        text("training-target-distance", game.distanceTo(enemy).toFixed(1));
+        text("training-attack-range", game.basicAttackRange);
+      }
     }
 
     skillButtons.forEach((button, index) => {
       const slot = index + 1;
       const skill = game.getSlotSkill(slot);
-      const remaining = skill?.remaining ?? 0;
+      const remaining = cooldowns ? (skill?.remaining ?? 0) : 0;
       const name = skill?.name ?? "ว่าง";
-      const binding = skill?.id ?? "";
+      const inactive = Boolean(skill && !game.isSkillEnabled(skill));
+      const binding = skill ? skill.id + (inactive ? ":inactive" : "") : "";
       if (button.dataset.binding !== binding) {
         button.dataset.binding = binding;
         button.className = "skill panel style-" + (skill?.icon ?? "empty");
-        button.title = skill ? name + " · " + skill.cost + " มานา\n" + skill.description : "ช่องว่าง · คลิกเพื่อจัดสกิล";
-        button.setAttribute("aria-label", "ช่อง " + slot + " " + (skill ? name : "ว่าง เปิดหน้าต่างสกิล"));
+        const skillLabel = name + (inactive ? " · รอเปิดใช้งาน" : "");
+        button.title = skill
+          ? [skillLabel, skill.cost + " มานา", skillRangeText(skill)].filter(Boolean).join(" · ") + "\n" + skill.description
+          : "ช่องว่าง · คลิกเพื่อจัดสกิล";
+        button.setAttribute("aria-label", "ช่อง " + slot + " " + (skill ? skillLabel : "ว่าง เปิดหน้าต่างสกิล"));
         button.querySelector("use").setAttribute("href", "#i-" + (skill?.icon ?? "plus"));
         button.querySelector(".skill-label").textContent = name;
       }
+      button.classList.toggle("skill-inactive", inactive);
       button.classList.toggle("on-cooldown", remaining > 0);
-      button.classList.toggle("low-mana", Boolean(skill && skill.cost > player.mp));
+      button.classList.toggle("low-mana", Boolean(manaCosts && skill && skill.cost > player.mp));
       const shade = button.querySelector(".skill-cooldown");
       shade.style.setProperty("--cooldown", (remaining ? 100 * remaining / skill.cooldown : 0) + "%");
       shade.textContent = remaining ? remaining.toFixed(remaining < 1 ? 1 : 0) : "";
@@ -126,37 +168,149 @@
     toastTimeout = setTimeout(() => setHidden("toast", true), 2900);
   }
 
-  function inventory() {
-    const { inventory, equipment } = state.player;
-    const allIds = [...new Set([...Object.keys(inventory), ...Object.values(equipment).filter(Boolean)])];
-    const entries = allIds.flatMap((id) => {
+  function itemArtwork(id) {
+    if (id === "town_scroll") return '<img class="town-scroll-art" src="assets/town-scroll.png" alt="" draggable="false">';
+    const cell = inventoryArt.indexOf(id);
+    if (cell < 0) return skillIcon(itemIcons[state.items[id]?.icon] ?? "bag");
+    return '<span class="bag-item-art" aria-hidden="true" style="background-position:' +
+      (cell % 5) * 25 + '% ' + Math.floor(cell / 5) * 100 + '%"></span>';
+  }
+
+  function renderItemShortcuts(player) {
+    itemShortcuts.forEach((button, index) => {
+      const id = state.itemSlots[index];
       const item = state.items[id];
-      const count = inventory[id] ?? 0;
-      const equipped = Object.values(equipment).includes(id);
-      if (!item || (!count && !equipped)) return [];
-      const action = equipped ? "" : item.type === "equipment" || item.slot ? "equip"
-        : item.type === "consumable" ? "use-item" : "";
-      return ['<li class="item-row"><span class="item-glyph" aria-hidden="true"><svg class="icon"><use href="#i-' +
-        (itemIcons[item.icon] ?? "bag") + '"></use></svg></span><div><strong>' + escape(item.name) +
-        '</strong><small>' + escape(item.description ?? item.desc ?? "") + '</small></div><span>' +
-        (equipped ? "สวมอยู่" : "×" + count) + '</span>' +
-        (action ? '<button data-action="' + action + '" data-id="' + escape(id) + '">' +
-          (action === "equip" ? "สวม" : "ใช้") + "</button>" : "") + "</li>"];
+      const count = player.inventory[id] ?? 0;
+      const label = itemSlotNames[index] + (item ? " · " + item.name + " ×" + fmt(count) : " · ว่าง");
+      const quantity = button.querySelector(".item-shortcut-count");
+      if (button.dataset.item !== (id ?? "")) {
+        button.dataset.item = id ?? "";
+        button.querySelector(".item-shortcut-icon").innerHTML = item ? itemArtwork(id) : "";
+      }
+      if (button.getAttribute("aria-label") !== label) {
+        button.setAttribute("aria-label", label);
+        button.title = count ? label : label + " · เปิดกระเป๋าเพื่อกำหนดช่อง";
+      }
+      const countText = fmt(count);
+      if (quantity.textContent !== countText) quantity.textContent = countText;
+      quantity.hidden = !item;
+      button.classList.toggle("out-of-stock", Boolean(item && !count));
+      button.classList.toggle("equipped", Boolean(item?.slot && player.equipment[item.slot] === id));
     });
-    return '<p class="panel-summary">เงินที่มี <strong>' + fmt(state.player.gold) + ' เบี้ย</strong></p>' +
-      (entries.length ? '<ul class="item-list">' + entries.join("") + "</ul>" : "<p>ยังไม่มีไอเทมในกระเป๋า</p>");
+  }
+
+  function inventoryShortcuts(selected) {
+    const canAssign = selected?.count > 0 && game.itemAction(selected.id);
+    const slots = state.itemSlots.map((id, index) => {
+      const name = itemSlotNames[index];
+      const item = state.items[id];
+      const current = item ? escape(item.name) : "ว่าง";
+      return '<div class="bag-binding"><button type="button" data-action="bind-item-slot" data-id="' + (index + 1) +
+        '" title="' + current + '"' + (canAssign && id !== selected.id ? "" : " disabled") +
+        '>ใส่' + name + '<small>' + current + '</small></button>' +
+        (item ? '<button type="button" class="bag-binding-clear" data-action="clear-item-slot" data-id="' + (index + 1) +
+          '" aria-label="ล้าง' + name + '">×</button>' : '') + '</div>';
+    }).join("");
+    return '<section class="bag-shortcuts"><h3>ช่องลัดไอเทม</h3><div class="bag-binding-grid">' + slots + '</div></section>';
+  }
+
+  function inventory() {
+    const { inventory, equipment, gold } = state.player;
+    const equipped = new Set(Object.values(equipment));
+    const entries = [...new Set([...Object.keys(inventory), ...equipped])].flatMap(id => {
+      const item = state.items[id];
+      const count = inventory[id] || 0;
+      if (!item || (cardsOnly && item.slot !== "card") || (!count && !equipped.has(id))) return [];
+      return [{ id, item, count, equipped: equipped.has(id) }];
+    });
+    if (sortInventory) entries.sort((a, b) => a.item.type.localeCompare(b.item.type) || a.item.name.localeCompare(b.item.name, "th"));
+    const selected = entries.find(entry => entry.id === selectedItem) ?? entries[0];
+    selectedItem = selected?.id ?? null;
+    const slots = entries.map(({ id, item, count, equipped }) => {
+      const name = escape(item.name);
+      return '<li><button type="button" class="bag-slot" data-action="inventory-select" data-id="' + id +
+        '" aria-pressed="' + (id === selectedItem) + '" aria-label="' + name + ' ×' + count +
+        (equipped ? ' · สวมอยู่' : '') + '" title="' + name + '">' + itemArtwork(id) +
+        (equipped ? '<span class="bag-equipped" aria-hidden="true">สวม</span>' : '') +
+        (count > 1 ? '<span class="bag-count" aria-hidden="true">' + fmt(count) + '</span>' : '') + '</button></li>';
+    });
+    const total = Math.max(20, Math.ceil(slots.length / 5) * 5);
+    const emptySlots = '<li class="bag-slot bag-slot-empty" aria-hidden="true"></li>'.repeat(total - slots.length);
+    let detail = '<p class="bag-empty">' + (cardsOnly ? 'ยังไม่มีการ์ด' : 'ยังไม่มีไอเทมในกระเป๋า') + '</p>';
+    if (selected) {
+      const { id, item } = selected;
+      const action = game.itemAction(id);
+      detail = '<div><strong>' + escape(item.name) + '</strong><small>' + escape(item.description) + '</small></div>' +
+        (selected.equipped ? '<span class="bag-worn">สวมอยู่</span>' : action ?
+          '<button type="button" data-action="' + action + '" data-id="' + id + '">' +
+          (action === "equip" ? "สวม" : "ใช้") + '</button>' : '');
+    }
+    return '<ul class="bag-grid" aria-label="' + (cardsOnly ? "การ์ด" : "ไอเทมในกระเป๋า") + '">' +
+      slots.join("") + emptySlots + '</ul><div class="bag-detail">' + detail + '</div>' + inventoryShortcuts(selected) +
+      '<div class="bag-footer"><button type="button" data-action="inventory-sort" aria-pressed="' + sortInventory +
+      '">จัดเรียง</button><button type="button" data-action="inventory-cards" aria-pressed="' + cardsOnly +
+      '">การ์ด</button><span class="bag-gold">' + skillIcon("coin") + fmt(gold) + ' เบี้ย</span></div>';
+  }
+
+  function questRewards(quest, received) {
+    const { item, gold, xp, jobXp, unlock } = quest.rewards;
+    const rewards = unlock ? [[skillIcon("quest"), unlock]] : [
+      [itemArtwork(item), state.items[item].name + " ×1"],
+      [skillIcon("coin"), fmt(gold) + " เบี้ย"],
+      [skillIcon("star"), fmt(xp) + " Base EXP"],
+      [skillIcon("quest"), fmt(jobXp) + " Job EXP"],
+    ];
+    return '<section class="quest-reward-list"><h3>' + (received ? 'รางวัลที่ได้รับ' : 'รางวัลภารกิจ') +
+      '</h3><ul>' + rewards.map(([icon, label]) => '<li>' + icon + '<span>' + escape(label) +
+      '</span></li>').join("") + '</ul></section>';
+  }
+
+  function npcDialogue() {
+    const { quest, questView, text: line } = dialogue;
+    const body = '<p>' + escape(line) + '</p>';
+    if (!questView) return body;
+    return '<h3>' + escape(quest.title) + '</h3>' + body + questRewards(quest, questView === "reward") +
+      (questView === "offer" ? '<div class="dialog-actions quest-offer-actions">' +
+        '<button type="button" data-action="close">ไม่รับภารกิจ</button>' +
+        '<button type="button" data-action="accept-quest">รับภารกิจ</button></div>' : "");
   }
 
   function character() {
     const player = state.player;
-    const rows = Object.entries(player.stats).map(([id, value]) => '<li class="item-row"><div><strong>' +
-      escape(id.toUpperCase()) + "</strong><small>" + escape(attributes[id.toUpperCase()]) + "</small></div><span>" +
-      value + '</span><button aria-label="เพิ่ม ' + escape(id.toUpperCase()) + '" data-action="raise" data-id="' +
-      escape(id) + '"' + (player.statPoints > 0 ? "" : " disabled") + ">+</button></li>");
-    return '<p class="panel-summary">Base Lv. ' + player.level + ' · Job Lv. ' + player.jobLevel +
-      '<br>Job EXP ' + fmt(player.jobXp) + ' / ' + fmt(player.nextJobXp) +
-      '<br>แต้มสถานะคงเหลือ <strong>' + player.statPoints + '</strong></p><ul class="item-list">' +
-      rows.join("") + "</ul>";
+    const { stats, remaining, spent } = game.statAllocation(pendingStats);
+    const { attack, defense, critical, attacksPerSecond, maxHp, maxMp } = game.combatStats(stats);
+    const trainingRows = Object.entries(stats).map(([id, value]) => {
+      const pending = pendingStats[id] ?? 0;
+      return '<tr><th scope="row"><strong>' + id + '</strong><small>' + escape(attributes[id]) + '</small></th><td>' +
+        fmt(player.stats[id]) + (pending ? '<span class="character-stat-delta">+' + pending + '</span>' : "") +
+        '</td><td><div class="character-stepper"><button type="button" aria-label="ลด ' + id +
+        '" data-action="stat-remove" data-id="' + id + '"' + (pending ? "" : " disabled") + '>−</button>' +
+        '<button type="button" aria-label="เพิ่ม ' + id + '" data-action="stat-add" data-id="' + id + '"' +
+        (remaining > 0 && value < 999 ? "" : " disabled") + '>+</button></div></td></tr>';
+    }).join("");
+    const combatRows = [
+      ["ATK", fmt(attack), "พลังโจมตีรวมอุปกรณ์"],
+      ["DEF", defense.toFixed(2).replace(/\.?0+$/, ""), "ค่าลดดาเมจก่อนปัดเศษ"],
+      ["Critical", (critical * 100).toFixed(0) + "%", "โอกาสคริติคอล"],
+      ["ASPD", attacksPerSecond.toFixed(2) + " ครั้ง/วิ.", "ความเร็วโจมตีปกติ"],
+      ["Max HP", fmt(maxHp), "พลังชีวิตสูงสุด"],
+      ["Max MP", fmt(maxMp), "มานาสูงสุด"],
+    ].map(([label, value, detail]) => '<tr><th scope="row"><strong>' + label + '</strong><small>' + detail +
+      '</small></th><td>' + value + '</td></tr>').join("");
+    const exp = (kind, level, value, max) => '<div class="character-exp"><span>' + kind + ' Lv. <strong>' + level +
+      '</strong></span><span>' + fmt(value) + ' / ' + fmt(max) + ' EXP</span><progress aria-label="' + kind +
+      ' EXP" value="' + value + '" max="' + max + '"></progress></div>';
+    return '<div class="character-overview"><div><strong>' + escape(player.name) + '</strong><small>' +
+      escape(player.job) + '</small></div><p>แต้มสถานะ <strong>' + fmt(remaining) + '</strong></p></div>' +
+      '<div class="character-experience">' + exp("Base", player.level, player.xp, player.nextXp) +
+      exp("Job", player.jobLevel, player.jobXp, player.nextJobXp) + '</div>' +
+      '<div class="character-tables"><section class="character-board"><h3 id="character-training">ค่าสเตตัส</h3>' +
+      '<table aria-labelledby="character-training"><tbody>' + trainingRows + '</tbody></table></section>' +
+      '<section class="character-board"><h3 id="character-combat">ค่าต่อสู้</h3>' +
+      '<table aria-labelledby="character-combat"><tbody>' + combatRows + '</tbody></table></section></div>' +
+      '<div class="dialog-actions character-actions"><button type="button" data-action="reset-levels">รีเซ็ตเลเวล</button>' +
+      '<button type="button" data-action="reset-character">รีเซ็ตตัวละคร</button>' +
+      '<button type="button" data-action="confirm-stats"' + (spent ? "" : " disabled") + '>ยืนยัน</button></div>';
   }
 
   function merchant() {
@@ -169,7 +323,8 @@
       const price = buying ? item.price : item.sell;
       const label = buying ? "ซื้อ" : "ขาย";
       const disabled = buying && player.gold < price ? " disabled" : "";
-      return '<li class="item-row"><div><strong>' + escape(item.name) + (buying ? "" : " ×" + player.inventory[id]) +
+      return '<li class="item-row"><span class="vendor-item-art" aria-hidden="true">' + itemArtwork(id) +
+        '</span><div><strong>' + escape(item.name) + (buying ? "" : " ×" + player.inventory[id]) +
         "</strong><small>" + escape(item.description) + "</small></div><span>" + price +
         ' เบี้ย</span><button data-action="' + action + '" data-id="' + id + '"' + disabled + '>' + label + '</button></li>';
     }).join("");
@@ -179,18 +334,34 @@
   }
 
   function autoSettings() {
-    const { range, hpBelow, mpBelow } = state.auto;
+    const { range, hpBelow, mpBelow, skillIds } = state.auto;
     const ranges = [["near", "ใกล้"], ["medium", "กลาง"], ["far", "ไกล"]];
     const options = ranges.map(([value, name]) =>
       '<option value="' + value + '"' + (range === value ? " selected" : "") + ">" + name + "</option>").join("");
     const threshold = (name, label, value) => '<label class="auto-field"><span>' + label +
       '</span><span class="auto-percent"><input type="number" name="' + name +
       '" min="0" max="100" step="1" required value="' + value + '"><span aria-hidden="true">%</span></span></label>';
+    const available = state.skills.filter(skill => game.isSkillEnabled(skill));
+    const skills = skillIds.map((id, index) => {
+      const skillOptions = available.map(skill => '<option value="' + escape(skill.id) + '"' +
+        (skill.id === id ? ' selected' : skillIds.includes(skill.id) ? ' disabled' : '') + '>' +
+        escape(skill.name) + '</option>').join("");
+      const unavailable = id && !available.some(skill => skill.id === id) && state.skills.find(skill => skill.id === id);
+      const savedOption = unavailable ? '<option value="' + escape(id) + '" selected data-unavailable>' +
+        escape(unavailable.name) + ' · ยังใช้ไม่ได้</option>' : '';
+      return '<label class="auto-skill-slot"><span>Skill ' + (index + 1) +
+        '</span><select name="skill"><option value="">ว่าง</option>' + skillOptions + savedOption + '</select></label>';
+    }).join("");
+    const hint = available.length ? "Auto ลองใช้จาก Skill 1 ไป Skill 5"
+      : "กด K เพื่อเปิดใช้งานสกิล Active แล้วกลับมาเลือกที่นี่";
     return '<form id="auto-form" class="auto-form"><label class="auto-field"><span>ระยะค้นหามอนสเตอร์</span>' +
       '<select name="range">' + options + '</select></label>' +
       threshold("hpBelow", "ใช้ยาฟื้น HP เมื่อต่ำกว่า", hpBelow) +
       threshold("mpBelow", "ใช้น้ำอบฟื้นมานาเมื่อต่ำกว่า", mpBelow) +
-      '<p class="muted">ตั้ง 0% เพื่อปิดการใช้ไอเทมชนิดนั้น</p><button type="submit">บันทึก</button></form>';
+      '<p class="muted">ตั้ง 0% เพื่อปิดการใช้ไอเทมชนิดนั้น</p>' +
+      '<fieldset class="auto-skills"><legend>สกิลที่ให้ Auto ใช้</legend><p class="muted">' + hint +
+      '</p><div>' + skills + '</div></fieldset>' +
+      '<button type="submit">บันทึก</button></form>';
   }
 
   function skillBook() {
@@ -210,59 +381,86 @@
           skillIcon(skill?.icon ?? "plus") + '<span>' + name + '</span></button>';
       }).join("");
       slots = '<div class="book-slots" role="group" aria-label="ช่องลัดสกิล 1 ถึง 5">' + slotButtons + '</div>' +
-        '<div class="book-instructions"><p id="skill-choice">เลือกสกิลสำหรับช่อง <strong>' + selectedSlot +
-        '</strong></p><button type="button" data-action="clear-skill-slot"' +
-        (game.getSlotSkill(selectedSlot) ? '' : ' disabled') + '>ล้างช่อง</button></div>';
+        '<div class="book-instructions"><p id="skill-choice">คลิกสกิลที่เปิดแล้วเพื่อใส่ช่อง <strong>' + selectedSlot +
+        '</strong></p><div class="book-slot-actions"><button type="button" data-action="clear-skill-slot"' +
+        (game.getSlotSkill(selectedSlot) ? '' : ' disabled') + '>ล้างช่อง</button>' +
+        '<button type="button" data-action="clear-all-skill-slots"' +
+        (state.skillSlots.some(Boolean) ? '' : ' disabled') + '>ล้างทั้งหมด</button></div></div>';
     }
     const catalog = active ? state.skills : state.passiveSkills;
     const cards = catalog.map((skill) => {
       const unlocked = game.isSkillUnlocked(skill);
       const assignedSlot = active ? state.skillSlots.indexOf(skill.id) + 1 : 0;
-      const status = !unlocked ? "ปลดล็อก Job Lv. " + skill.jobLevel
-        : active ? (assignedSlot ? "ช่อง " + assignedSlot : "") : "ทำงานอยู่";
-      const details = active ? '<small class="book-cost">' + skill.cost + ' มานา · พัก ' + skill.cooldown + ' วิ.</small>' : '';
+      const enabled = game.isSkillEnabled(skill);
+      const status = assignedSlot ? "ช่อง " + assignedSlot : "";
+      const requirements = game.skillRequirements(skill).map(({ label, minimum, current }) =>
+        '<span class="book-requirement' + (current < minimum ? ' missing' : '') + '">' +
+        label + ' ' + minimum + (current < minimum ? ' (มี ' + current + ')' : '') + '</span>').join("");
+      const details = active ? '<small class="book-cost">' +
+        [skill.cost + ' มานา', 'พัก ' + skill.cooldown + ' วิ.', skillRangeText(skill)].filter(Boolean).join(' · ') + '</small>' : '';
       const content = '<span class="book-icon">' + skillIcon(skill.icon) + '</span><span class="book-card-text"><strong>' +
-        escape(skill.name) + '</strong><small>' + escape(skill.description) + '</small>' + details + '</span>' +
-        (status ? '<span class="book-card-state">' + status + '</span>' : '');
-      const className = 'book-card style-' + skill.icon + (unlocked ? '' : ' locked');
-      return '<li>' + (active ? '<button type="button" class="' + className + '" data-action="assign-skill" data-id="' +
-        skill.id + '" aria-describedby="skill-choice"' + (unlocked ? '' : ' disabled') + '>' + content + '</button>' :
-        '<div class="' + className + '">' + content + '</div>') + '</li>';
+        escape(skill.name) + '</strong><small>' + escape(skill.description) + '</small>' + details +
+        '<span class="book-requirements" aria-label="เงื่อนไข">' + requirements + '</span></span>';
+      const main = active && enabled ? '<button type="button" class="book-card-main" data-action="assign-skill" data-id="' +
+        skill.id + '" aria-describedby="skill-choice">' + content + '</button>' :
+        '<div class="book-card-main">' + content + '</div>';
+      const activation = enabled ? '<span class="book-skill-status" tabindex="-1" data-action="skill-enabled" data-id="' +
+        skill.id + '">ใช้งานแล้ว</span>' :
+        unlocked ? '<button type="button" class="book-skill-enable" data-action="enable-skill" data-id="' +
+          skill.id + '" aria-label="เปิดใช้งาน ' + escape(skill.name) + '">เปิดใช้งาน</button>' : '';
+      return '<li class="book-card style-' + skill.icon + (unlocked ? '' : ' locked') + '">' + main +
+        '<div class="book-card-controls">' + (status ? '<span class="book-card-state">' + status + '</span>' : '') +
+        activation + '</div></li>';
     }).join("");
-    return '<div class="book-heading"><p>นักดาบมือเดียว <span>· Job Lv. ' + state.player.jobLevel +
+    return '<div class="book-heading"><p>นักดาบมือเดียว <span>· Base Lv. ' + state.player.level + ' · Job Lv. ' + state.player.jobLevel +
       '</span></p><div class="book-tabs" role="group" aria-label="ประเภทสกิล">' + tabButtons + '</div></div>' +
-      slots + (active ? '' : '<p class="book-passive-note">สกิลติดตัวทำงานอัตโนมัติเมื่อถึงเลเวลอาชีพที่กำหนด</p>') +
+      slots + (active ? '' : '<p class="book-passive-note">สกิลติดตัวเริ่มให้โบนัสเมื่อผ่านเงื่อนไขและกดเปิดใช้งาน</p>') +
       '<ul class="book-catalog">' + cards + '</ul>';
   }
 
   function renderPanel() {
-    const { quest } = state;
+    const quest = state.trackedQuest;
     const titles = { inventory: "กระเป๋าสัมภาระ", quests: "บันทึกภารกิจ", character: "สถานะตัวละคร", help: "วิธีเล่น",
-      "auto-settings": "ตั้งค่าการเล่นอัตโนมัติ", skills: "สกิล",
-      dialogue: dialogue?.npc.name, vendor: dialogue?.npc.name };
+      "auto-settings": "ตั้งค่าการเล่นอัตโนมัติ", skills: "สกิล", "reset-levels": "รีเซ็ตเลเวล", "reset-character": "เริ่มตัวละครใหม่",
+      dialogue: dialogue?.npc.name + (dialogue?.questView ? " (ภารกิจ)" : ""), vendor: dialogue?.npc.name };
     const content = {
       inventory,
       character,
+      "reset-levels": () => '<p>ตั้ง Base Lv. และ Job Lv. เป็น 1 และ EXP ทั้งคู่เป็น 0</p>' +
+        '<div class="dialog-actions"><button type="button" data-action="character">กลับ</button>' +
+        '<button type="button" data-action="confirm-reset-levels">ยืนยันรีเซ็ตเลเวล</button></div>',
+      "reset-character": () => '<p>เริ่มใหม่ที่ Base Lv. 1 และ Job Lv. 1 เซฟตัวละครปัจจุบันจะถูกแทนที่</p>' +
+        '<div class="dialog-actions"><button type="button" data-action="character">กลับ</button>' +
+        '<button type="button" data-action="confirm-reset-character">เริ่มใหม่</button></div>',
       skills: skillBook,
       "auto-settings": autoSettings,
       quests: () => "<h3>" + escape(quest.title) + "</h3><p>" + escape(quest.description) +
-        '</p><p class="panel-summary">' + escape(questStatus[quest.status]) +
-        (quest.status === "active" ? " · " + quest.count + " / " + quest.needed : "") + "</p>",
+        '</p><p class="panel-summary">' + escape(quest.objective) +
+        (quest.status === "active" ? " · " + escape(game.questProgress(quest)) : "") + "</p>" +
+        questRewards(quest, quest.status === "completed") +
+        (state.zone !== "training" && questActionLabels[quest.status] ? '<div class="dialog-actions"><button type="button" data-action="quest-owner">' +
+          questActionLabels[quest.status] + '</button></div>' : ""),
       help: () => '<dl class="key-list"><dt>คลิกพื้น / WASD</dt><dd>เดินและสำรวจ</dd>' +
         '<dt>คลิกศัตรู / Space</dt><dd>เข้าประชิดและโจมตีต่อเนื่อง</dd>' +
         '<dt>1–5 · K</dt><dd>ใช้สกิล · เปิดหน้าต่างสกิล</dd><dt>F</dt><dd>คุยหรือเข้าเขตใกล้ตัว</dd>' +
         '<dt>V · C · B</dt><dd>กระเป๋า ภารกิจ สถานะ</dd>' +
         '<dt>ลูกกลิ้ง</dt><dd>ซูมกล้อง</dd>' +
-        '<dt>F11</dt><dd>เต็มหน้าจอ</dd></dl>',
-      dialogue: () => "<p>" + escape(dialogue.text) + "</p>",
+        '<dt>F11</dt><dd>เต็มหน้าจอ</dd></dl>' +
+        (skillAudio?.supported ? '<div class="dialog-actions"><button type="button" data-action="skill-sound" aria-pressed="' +
+          skillAudio.enabled + '">เสียงสกิล <span aria-hidden="true">· ' + (skillAudio.enabled ? 'เปิด' : 'ปิด') +
+          '</span></button></div>' : ''),
+      dialogue: npcDialogue,
       vendor: merchant,
     };
     text("dialog-title", titles[panel]);
     dialog.classList.toggle("skill-dialog", panel === "skills");
+    dialog.classList.toggle("character-dialog", panel === "character");
+    dialog.classList.toggle("inventory-dialog", panel === "inventory");
     $("dialog-content").innerHTML = content[panel]?.() ?? "";
   }
 
   function openPanel(name) {
+    pendingStats = {};
     if (dialog.open && name === panel && name !== "dialogue" && name !== "vendor") {
       dialog.close();
       return;
@@ -290,16 +488,70 @@
       case "inventory":
       case "quests":
       case "character":
+      case "reset-character":
+      case "reset-levels":
       case "help":
       case "skills":
       case "auto-settings": openPanel(action); return;
+      case "quest-owner":
+        if (!questActionLabels[state.trackedQuest.status]) return;
+        if (dialog.open) dialog.close();
+        game.interact(state.trackedQuest.npcId);
+        renderHUD();
+        return;
+      case "accept-quest":
+        if (game.acceptQuest()) {
+          dialog.close();
+          canvas.focus({ preventScroll: true });
+          renderHUD();
+          notify("รับภารกิจแล้ว");
+        }
+        return;
+      case "inventory-select": selectedItem = id; break;
+      case "bind-item-slot": game.assignItemSlot(Number(id), selectedItem); break;
+      case "clear-item-slot": game.assignItemSlot(Number(id), null); break;
+      case "item-shortcut": {
+        const item = state.itemSlots[Number(id) - 1];
+        if (!item || !state.player.inventory[item]) {
+          openPanel("inventory");
+          return;
+        }
+        runAction(game.itemAction(item), item);
+        return;
+      }
+      case "inventory-sort": sortInventory = !sortInventory; break;
+      case "inventory-cards": cardsOnly = !cardsOnly; break;
       case "skill-tab": skillTab = id; break;
       case "select-skill-slot": selectedSlot = Number(id); break;
       case "assign-skill": game.assignSkill(selectedSlot, id); break;
       case "clear-skill-slot": game.assignSkill(selectedSlot, null); break;
+      case "clear-all-skill-slots": game.clearSkillSlots(); break;
+      case "enable-skill": game.enableSkill(id); break;
       case "auto-toggle":
         game.setAuto(!state.auto.enabled);
         renderHUD();
+        return;
+      case "training-cooldown":
+        if (game.setTrainingCooldowns(!state.trainingCooldowns)) renderHUD();
+        return;
+      case "training-mana":
+        if (game.setTrainingManaCosts(!state.trainingManaCosts)) renderHUD();
+        return;
+      case "skill-sound": skillAudio.setEnabled(!skillAudio.enabled); break;
+      case "confirm-reset-levels":
+        game.resetLevels();
+        renderHUD();
+        openPanel("character");
+        return;
+      case "confirm-reset-character":
+        game.resetCharacter();
+        skillTab = "active";
+        selectedSlot = 1;
+        hits.length = 0;
+        effects.replaceChildren();
+        dialog.close();
+        renderHUD();
+        notify("เริ่มตัวละครใหม่แล้ว");
         return;
       case "close": dialog.close(); return;
       case "fullscreen":
@@ -309,9 +561,23 @@
       case "clear-target": game.setAuto(false); game.selectTarget(null); return;
       case "attack": game.setAuto(false); game.attack(); return;
       case "talk": game.interact(); return;
-      case "use-item": game.useItem(id); break;
+      case "use-item":
+        if (game.useItem(id) && id === "town_scroll" && dialog.open) dialog.close();
+        break;
       case "equip": game.equipItem(id); break;
-      case "raise": game.raiseStat(id); break;
+      case "stat-add":
+      case "stat-remove": {
+        const amount = (pendingStats[id] ?? 0) + (action === "stat-add" ? 1 : -1);
+        const draft = { ...pendingStats, [id]: amount };
+        if (game.statAllocation(draft)) pendingStats = draft;
+        break;
+      }
+      case "confirm-stats":
+        if (game.applyStatPoints(pendingStats)) {
+          pendingStats = {};
+          notify("อัปค่าสเตตัสแล้ว");
+        }
+        break;
       case "buy": game.buyItem(id); break;
       case "sell": game.sellItem(id); break;
       default: return;
@@ -319,12 +585,15 @@
     renderHUD();
     if (dialog.open) {
       renderPanel();
+      const nextAction = action === "enable-skill" ? "skill-enabled" : action;
       const replacement = [...$("dialog-content").querySelectorAll("[data-action]")]
-        .find((button) => button.dataset.action === action && button.dataset.id === id && !button.disabled);
+        .find((element) => element.dataset.action === nextAction && element.dataset.id === id && !element.disabled);
       const slotButton = panel === "skills" && skillTab === "active"
         ? $("dialog-content").querySelector('[data-action="select-skill-slot"][aria-pressed="true"]') : null;
       if (action === "skill-tab") $("dialog-content").scrollTop = 0;
-      (replacement ?? slotButton ?? $("dialog-close")).focus({ preventScroll: true });
+      const itemButton = panel === "inventory" ? $("dialog-content").querySelector('.bag-slot[aria-pressed="true"]') : null;
+      const statButton = panel === "character" ? $("dialog-content").querySelector('[data-action="confirm-stats"]:enabled') : null;
+      (replacement ?? slotButton ?? itemButton ?? statButton ?? $("dialog-close")).focus({ preventScroll: true });
     }
   }
 
@@ -337,6 +606,17 @@
     const button = event.target.closest("[data-action]");
     if (button) runAction(button.dataset.action, button.dataset.id);
   });
+  document.addEventListener("change", (event) => {
+    if (!event.target.matches('#auto-form select[name="skill"]')) return;
+    const slots = [...event.target.form.querySelectorAll('select[name="skill"]')];
+    const chosen = new Set(slots.map(slot => slot.value));
+    for (const slot of slots) {
+      for (const option of slot.options) {
+        option.disabled = option.value !== slot.value &&
+          (option.hasAttribute("data-unavailable") || chosen.has(option.value)) && option.value !== "";
+      }
+    }
+  });
   document.addEventListener("submit", (event) => {
     if (event.target.id !== "auto-form") return;
     event.preventDefault();
@@ -345,10 +625,13 @@
       range: form.get("range"),
       hpBelow: Number(form.get("hpBelow")),
       mpBelow: Number(form.get("mpBelow")),
+      skillIds: form.getAll("skill"),
     });
     dialog.close();
   });
-  dialog.addEventListener("close", () => { panel = null; keys.clear(); });
+  dialog.addEventListener("close", () => {
+    if (!dialog.open) { panel = null; pendingStats = {}; keys.clear(); }
+  });
   dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
 
   canvas.addEventListener("pointerdown", (event) => {
@@ -407,8 +690,13 @@
   effects.setAttribute("aria-hidden", "true");
   canvas.after(effects);
 
+  if (skillAudio?.supported) {
+    for (const type of ["pointerup", "keydown", "click"]) document.addEventListener(type, skillAudio.unlock, true);
+  }
+
   game.subscribe((event) => {
-    if (event.type === "level" && dialog.open && panel === "skills") {
+    skillAudio?.play(event);
+    if (dialog.open && ((event.type === "level" && (panel === "skills" || panel === "character")) || (event.type === "quest" && panel === "quests"))) {
       const { action, id } = document.activeElement.dataset;
       renderPanel();
       const button = [...$("dialog-content").querySelectorAll("[data-action]")]
@@ -484,12 +772,13 @@
     let sending = false;
     function sendPresence() {
       if (!connected || sending) return;
-      const { x, y, dir, moving, action, level, equipment } = state.player;
+      const { x, y, dir, attackDir, moving, action, level, equipment } = state.player;
+      const facing = action === "attack" ? (attackDir ?? dir) : dir;
       sending = true;
       fetch("/api/presence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, x, y, zone: state.zone, dir, moving, action, level, weapon: equipment.weapon }),
+        body: JSON.stringify({ id, x, y, zone: state.zone, dir: facing, moving, action, level, weapon: equipment.weapon }),
         signal: AbortSignal.timeout(4000),
       }).catch(() => {}).finally(() => { sending = false; });
     }
