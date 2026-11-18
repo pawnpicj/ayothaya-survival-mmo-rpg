@@ -12,6 +12,7 @@
   const BLEED_TICKS = 3;
   const BLEED_DAMAGE_FRACTION = .15;
   const BLEED_CHANCE = .2;
+  const CHALAWAN_BLEED_BONUS = .15;
   const MONSTER_CARD_DROP_CHANCE = .01 / 100;
   const BOSS_CARD_DROP_CHANCE = .025 / 100;
   const EXPERIENCE_REWARD_RATE = .75;
@@ -23,12 +24,21 @@
   const AUTO_GUARD_RANGE = 49;
   const GUARD_DURATION = 6;
   const DUMMY_RECOVERY_DELAY = 5;
+  const THA_KHAM_FERRY_FARE = 20;
   const VILLAGE_GATE = {
     inner: BOUNDS.right, outer: 2080, viewX: 0.932, halfWidth: 18,
     route: [[1555, 277], [1632, 256], [1820, 256], [1895, 270], [1962, 286], [2014, 272], [2057, 244], [2080, 219]],
   };
   const RUINS_GATE = {
     inner: BOUNDS.left, outer: 0, viewX: 0.108, halfWidth: 20,
+    route: [[0, 520], [135, 520]],
+  };
+  const RUINS_HARBOR_APPROACH = {
+    inner: BOUNDS.left, outer: 0, viewX: .089, halfWidth: 27,
+    route: [[0, 120], [20, 150], [60, 176], [135, 211]],
+  };
+  const HARBOR_RETURN_APPROACH = {
+    inner: BOUNDS.left, outer: 0, viewX: .105, halfWidth: 25,
     route: [[0, 520], [135, 520]],
   };
   const VILLAGE_TRAINING_GATE = {
@@ -84,11 +94,13 @@
     ruins: {
       id: 'ruins', name: 'ดงเจดีย์ร้าง', subtitle: 'เขตป่าตะวันออก', levels: 'Lv. 3–7',
       width: 1680, height: 1120, bounds: { ...BOUNDS, left: RUINS_GATE.outer, top: RUINS_INNER_GATE.exitY },
-      spawn: [310, 548], arrival: [158, 520], gateApproaches: [RUINS_GATE], innerGate: RUINS_INNER_GATE,
+      spawn: [310, 548], arrival: [158, 520], gateApproaches: [RUINS_GATE, RUINS_HARBOR_APPROACH], innerGate: RUINS_INNER_GATE,
       obstacles: [],
       npcs: [{ id: 'ruins-guard', type: 'guard', name: 'พรานหม่อง', x: 415, y: 520 }],
       portals: [{ id: 'west-gate', name: 'บ้านท่ามะขาม', x: 7, y: 520,
-        target: 'village', facing: 'w', automatic: true, reach: 11 }, RUINS_INNER_GATE],
+        target: 'village', facing: 'w', automatic: true, reach: 11 }, RUINS_INNER_GATE,
+        { id: 'harbor-gate', name: 'ท่าเรือท่าข้าม', x: 8, y: 132, target: 'harbor',
+          key: 'ghost_key', facing: 'e', reach: 42 }],
       enemies: [
         ['ghost', 590, 430], ['ghost', 785, 620], ['ghost', 1065, 445], ['ghost', 1045, 855],
         ['monkey', 435, 773], ['monkey', 725, 860], ['monkey', 1010, 652],
@@ -108,6 +120,32 @@
         ['grave_spirit', 1215, 749], ['grave_spirit', 1430, 535], ['grave_spirit', 1370, 330],
         ['grave_guardian', 610, 735], ['grave_guardian', 755, 465], ['grave_guardian', 1050, 608],
         ['grave_guardian', 1330, 633], ['grave_guardian', 1445, 800],
+      ],
+    },
+    harbor: {
+      id: 'harbor', name: 'ท่าเรือท่าข้าม', levels: 'เขตท่าเรือ', width: 1680, height: 1120,
+      bounds: { ...BOUNDS, left: HARBOR_RETURN_APPROACH.outer, top: -180 },
+      northShore: [
+        [135, 405], [210, -18], [525, -46], [705, -89], [755, -119],
+        [985, -153], [1225, -167], [1380, -112], [1555, 30],
+      ],
+      spawn: [245, 520], gateApproaches: [HARBOR_RETURN_APPROACH], obstacles: [], enemies: [],
+      npcs: [{ id: 'harbor-master', type: 'harbor-master', name: 'นายท่าอิน', x: 735, y: -82 }],
+      interactables: [
+        { id: 'harbor-crate', type: 'harbor-crate', name: 'หีบสินค้า', x: 1090, y: 255 },
+        { id: 'harbor-boarding', type: 'ferry', name: 'จุดขึ้นเรือ', signText: 'ท่าเรือท่าข้าม',
+          x: 995, y: -126, target: 'nipa', fare: THA_KHAM_FERRY_FARE, facing: 's' },
+      ],
+      bossSpawn: [850, 415], bossEntrance: [1170, -285],
+      portals: [{ id: 'harbor-exit', name: 'ดงเจดีย์ร้าง', x: 8, y: 520, target: 'ruins',
+        arrival: [160, 216], facing: 'se', automatic: true, reach: 14 }],
+    },
+    nipa: {
+      id: 'nipa', name: 'ป่าจากน้ำกร่อย', levels: 'ท่าเรือริมป่าจาก', width: 1680, height: 1120,
+      bounds: { ...BOUNDS }, spawn: [770, 282], obstacles: [], npcs: [], enemies: [], portals: [],
+      interactables: [
+        { id: 'nipa-boarding', type: 'ferry', name: 'เรือกลับท่าข้าม', signText: 'กลับท่าข้าม',
+          x: 855, y: 208, target: 'harbor', arrival: [995, -42], facing: 's' },
       ],
     },
     training: {
@@ -134,10 +172,14 @@
     guardian: { name: 'ยักษ์ศิลา', level: 5, hp: 142, atk: 17, ...experienceReward(96, 54), gold: 27, speed: 63, drop: 'guardian_seal' },
     grave_spirit: { name: 'วิญญาณเฝ้าหลุม', sprite: 'ghost', level: 12, hp: 165, atk: 22, ...experienceReward(108, 57), gold: 26, speed: 72, drop: 'spirit_dust' },
     grave_guardian: { name: 'อารักษ์ป่าช้า', sprite: 'guardian', level: 16, hp: 235, atk: 28, ...experienceReward(145, 76), gold: 40, speed: 61, drop: 'guardian_seal' },
-    pret: { name: 'ผีเปรต', boss: true, level: 24, hp: 2200, atk: 40, ...experienceReward(940, 470), gold: 240,
+    pret: { name: 'ผีเปรต', boss: true, level: 24, hp: 5500, atk: 100, ...experienceReward(940, 470), gold: 240,
       speed: 56, attackRange: 58, windup: .68, attackInterval: 1.65,
       slam: { radius: 160, windup: 1.1, recovery: .45, cooldown: 7, stunTime: .08 },
       basicStun: { chance: .002, duration: .01 }, drop: 'pret_ash', card: 'pret_card' },
+    chalawan: { name: 'ชาละวัน', boss: true, level: 34, hp: 4200, atk: 74, ...experienceReward(1200, 600), gold: 300,
+      speed: 78, attackRange: 63, windup: .59, attackInterval: 1.35, entranceDuration: 1.65, collapseDuration: 1.2,
+      basicBleed: true, drop: 'river_lord_armor', card: 'chalawan_card', cardChance: 1,
+      slam: { style: 'tail-sweep', radius: 142, windup: 1.1, recovery: .44, cooldown: 6, stunTime: 0 } },
     dummy: { name: 'หุ่นไล่กา', hp: 999999 },
   };
 
@@ -148,18 +190,32 @@
       type: 'consumable', icon: 'scroll', price: 20 },
     rusty_sword: { name: 'ดาบฝึกหัด', description: 'พลังโจมตี +4', type: 'equipment', icon: 'sword', slot: 'weapon', attack: 4 },
     bronze_sword: { name: 'ดาบสำริด', description: 'พลังโจมตี +10', type: 'equipment', icon: 'sword', slot: 'weapon', attack: 10, sell: halfGold(30), baseLevel: 10 },
+    river_lord_armor: { name: 'เกราะหนังเจ้าแห่งลุ่มแม่น้ำ', description: 'DEF +5 · HP สูงสุด +50',
+      type: 'equipment', icon: 'armor', slot: 'armor', defense: 5, hp: 50 },
     tamarind_core: { name: 'เมล็ดมะขามภูต', description: 'วัตถุดิบสำหรับขาย', type: 'material', icon: 'seed', sell: halfGold(3) },
     monkey_claw: { name: 'กรงเล็บลิงป่า', description: 'วัตถุดิบสำหรับขาย', type: 'material', icon: 'claw', sell: halfGold(7) },
     spirit_dust: { name: 'ผงพงไพร', description: 'วัตถุดิบสำหรับขาย', type: 'material', icon: 'dust', sell: halfGold(10) },
     tamarind_card: { name: 'การ์ดมะขามภูต', description: 'ใส่ช่องการ์ดเพื่อเพิ่มพลังโจมตี 3 และ HP สูงสุด 12', type: 'equipment', icon: 'card', slot: 'card', attack: 3, hp: 12 },
     monkey_card: { name: 'การ์ดลิงป่า', description: 'ใส่ช่องการ์ดเพื่อเพิ่มพลังโจมตี 3 และ HP สูงสุด 12', type: 'equipment', icon: 'card', slot: 'card', attack: 3, hp: 12 },
     guardian_seal: { name: 'ตราอารักษ์', description: 'เครื่องรางเก่าที่พบจากยักษ์ศิลา', type: 'material', icon: 'seal', sell: halfGold(35) },
-    pret_ash: { name: 'เถ้าอาคมผีเปรต', description: 'เถ้าจากลานพิธี ใช้ขายให้ร้านค้า', type: 'material', icon: 'dust', sell: halfGold(110) },
+    pret_ash: { name: 'เถ้าอาคมผีเปรต', description: 'เถ้าจากลานพิธี ใช้ขายให้ร้านค้า', type: 'material', icon: 'pret-ash', sell: halfGold(110) },
+    ghost_key: { name: 'กุญแจผี', description: 'ใช้เปิดซุ้มทางไปท่าเรือท่าข้ามในดงเจดีย์ร้าง', type: 'key', icon: 'key' },
     pret_card: { name: 'การ์ดผีเปรต', description: 'ใส่ช่องการ์ดเพื่อเพิ่มพลังโจมตี 8 และ HP สูงสุด 35', type: 'equipment', icon: 'card', slot: 'card', attack: 8, hp: 35 },
+    chalawan_card: { name: 'การ์ดชาละวัน', description: 'ATK +5 · ทำดาเมจเพิ่ม 15% ต่อมอนสเตอร์และบอสที่กำลังเลือดออก',
+      type: 'equipment', icon: 'card', slot: 'card', attack: 5 },
   };
 
   const DEFAULT_SKILL_SLOTS = ['heavy', 'sweep', 'guard', 'heal', 'dash'];
   const ITEM_SLOT_COUNT = 2;
+  const CLASS_LEVEL_CAPS = {
+    1: { base: 35, job: 10 },
+    2: { base: 99, job: 35 },
+    3: { base: 99, job: 50 },
+  };
+  const CARD_SLOTS = [
+    { id: 'card', classTier: 1 }, { id: 'card2', classTier: 1 },
+    { id: 'card3', classTier: 2 }, { id: 'card4', classTier: 3 },
+  ];
   const ACTIVE_SKILLS = [
     { id: 'heavy', name: 'ฟันหนัก', icon: 'blade', baseLevel: 10, jobLevel: 1, stat: ['STR', 1], cost: 5, cooldown: 3,
       description: 'โจมตีเป้าหมายเดียวด้วยพลัง 185%', strike: { range: 90, duration: 0.46, multiplier: 1.85 } },
@@ -209,10 +265,28 @@
     available: 'คุยกับพรานหม่อง', active: 'กำจัดมอนสเตอร์ตามเป้าหมาย',
     ready: 'กลับไปหาพรานหม่อง', completed: 'เดินทางต่อสู่ป่าช้าวัดร้าง',
   };
+  const HARBOR_QUEST = {
+    npcId: 'harbor-master', title: 'เรือเที่ยวสุดท้าย',
+    description: 'เก็บหีบสินค้าริมท่าฝั่งตะวันออก ปราบชาละวันที่กลางลาน แล้วนำหีบกลับไปให้นายท่าอิน', needed: 1,
+    rewards: { unlock: 'เปิดจุดขึ้นเรือท่าข้าม' },
+  };
+  const HARBOR_QUEST_OBJECTIVES = {
+    available: 'คุยกับนายท่าอิน', active: 'เก็บหีบสินค้าริมท่าฝั่งตะวันออก',
+    fight: 'ปราบชาละวันกลางลานท่าเรือ',
+    ready: 'นำหีบไปให้นายท่าอิน', completed: 'เปิดจุดขึ้นเรือแล้ว',
+  };
+  const HARBOR_QUEST_DIALOGUE = {
+    available: 'เรือเที่ยวสุดท้ายกำลังจะออก แต่หีบสินค้าหลุดจากเชือกตอนเทียบท่า น้ำซัดไปเกยริมท่าฝั่งตะวันออก ฝากเจ้าไปเก็บกลับมาให้ข้าที',
+    active: 'เดินเลียบแม่น้ำไปทางตะวันออก มองหาหีบไม้ แล้วนำกลับมาหาข้า',
+    fight: 'ชาละวันขึ้นมาบนลานแล้ว! ปราบมันก่อน เราถึงจะเปิดท่าให้เรือออกได้',
+    ready: 'ได้หีบคืนแล้ว ขอบใจมาก! ข้าเปิดจุดขึ้นเรือตรงศาลาริมน้ำให้เจ้าแล้ว',
+    completed: 'เรือไปป่าจากน้ำกร่อยอยู่ตรงศาลาริมน้ำ เดินเลียบตลิ่งไปได้เลย',
+  };
   const DIRECTIONS = ['e', 'se', 's', 'sw', 'w', 'nw', 'n', 'ne'];
   const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
   const GRID = 20;
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const isFightable = enemy => enemy.hp > 0 && !enemy.entrance;
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const expNeeded = level => 48 + (level - 1) * 29;
   const jobExpNeeded = level => 30 + (level - 1) * 17;
@@ -270,6 +344,19 @@
     return Object.entries(RUINS_QUEST.goals).every(([id, needed]) => counts[id] === needed);
   }
 
+  function readHarborQuest(saved) {
+    const started = ['active', 'fight', 'ready', 'completed'].includes(saved?.status);
+    const count = started ? boundedNumber(saved.count, 0, 0, HARBOR_QUEST.needed) : 0;
+    const collected = count === HARBOR_QUEST.needed;
+    const bossDefeated = collected && saved.bossDefeated === true;
+    let status = started ? 'active' : 'available';
+    if (collected) status = saved.status === 'completed' ? 'completed' : bossDefeated ? 'ready' : 'fight';
+    const loot = collected && saved.loot === 'earned' ? 'earned' :
+      status === 'completed' && saved.loot === 'challenge' ? 'challenge' : 'unclaimed';
+    return { ...HARBOR_QUEST, status, count, bossDefeated, loot, ferryUsed: status === 'completed' && saved.ferryUsed === true,
+      objective: HARBOR_QUEST_OBJECTIVES[loot === 'challenge' ? 'fight' : status] };
+  }
+
   function readCemeteryHunt(value, deadline) {
     const now = Date.now();
     const respawnAt = Number.isFinite(deadline) && deadline > now ? Math.min(deadline, now + CEMETERY_RESPAWN_DELAY) : 0;
@@ -303,11 +390,24 @@
     return level >= (item.baseLevel ?? 1);
   }
 
+  function readTradeCounts(savedCounts, priceKey) {
+    const counts = {};
+    for (const [id, item] of Object.entries(ITEMS)) {
+      const count = boundedNumber(savedCounts?.[id], 0, 0, Number.MAX_SAFE_INTEGER);
+      if (item[priceKey] > 0 && count > 0) counts[id] = count;
+    }
+    return counts;
+  }
+
+  function countEquipped(equipment, id) {
+    return Object.values(equipment).filter(itemId => itemId === id).length;
+  }
+
   function makePlayer(saved = {}) {
     const inventory = { potion: 3, elixir: 1, rusty_sword: 1 };
     if (saved.inventory && typeof saved.inventory === 'object') {
       for (const id of Object.keys(ITEMS)) {
-        const count = boundedNumber(saved.inventory[id], 0, 0, 9999);
+        const count = boundedNumber(saved.inventory[id], 0, 0, id === 'ghost_key' ? 1 : 9999);
         if (count) inventory[id] = count;
         else delete inventory[id];
       }
@@ -315,19 +415,32 @@
     }
     const stats = Object.fromEntries(STAT_KEYS.map(key => [key, boundedNumber(saved.stats?.[key], 1, 1, 999)]));
     const equipment = { weapon: 'rusty_sword' };
-    const level = boundedNumber(saved.level, 1, 1, 1000);
+    const classTier = boundedNumber(saved.classTier, 1, 1, 3);
+    const caps = CLASS_LEVEL_CAPS[classTier];
+    const level = boundedNumber(saved.level, 1, 1, caps.base);
     for (const [slot, id] of Object.entries(saved.equipment || {})) {
-      if (Object.hasOwn(ITEMS, id) && ITEMS[id].slot === slot && inventory[id] && meetsItemLevel(ITEMS[id], level)) {
+      if (slot !== 'card' && Object.hasOwn(ITEMS, id) && ITEMS[id].slot === slot && inventory[id] && meetsItemLevel(ITEMS[id], level)) {
         equipment[slot] = id;
+      }
+    }
+    for (const slot of CARD_SLOTS) {
+      const id = saved.equipment?.[slot.id];
+      if (classTier >= slot.classTier && Object.hasOwn(ITEMS, id) && ITEMS[id].slot === 'card' &&
+          meetsItemLevel(ITEMS[id], level) && countEquipped(equipment, id) < inventory[id]) {
+        equipment[slot.id] = id;
       }
     }
     const player = {
       x: 770, y: 570, dir: 's', moving: false, action: 'idle', actionTime: 0,
-      name: 'นักดาบฝึกหัด', job: 'นักดาบ', level,
-      jobLevel: boundedNumber(saved.jobLevel, 1, 1, 1000),
+      name: 'นักดาบฝึกหัด', job: 'นักดาบ', level, classTier,
+      jobLevel: boundedNumber(saved.jobLevel, 1, 1, caps.job),
       xp: boundedNumber(saved.xp, 0, 0, 1000000), jobXp: boundedNumber(saved.jobXp, 0, 0, 1000000),
       gold: boundedNumber(saved.gold, 12, 0, 10000000), statPoints: boundedNumber(saved.statPoints, 0, 0, 9999),
-      inventory, equipment, stats, hp: 100, mp: 50, guardTime: 0, stunTime: 0,
+      inventory, equipment, stats, hp: 100, mp: 50, guardTime: 0, stunTime: 0, bleed: null,
+      tradeCounts: {
+        bought: readTradeCounts(saved.tradeCounts?.bought, 'price'),
+        sold: readTradeCounts(saved.tradeCounts?.sold, 'sell'),
+      },
     };
     updateAttributes(player);
     player.hp = boundedNumber(saved.hp, player.maxHp, 1, player.maxHp);
@@ -341,13 +454,19 @@
       maxHp: 100 + (player.level - 1) * 10 + (stats.VIT - 1) * 8 + equipped.reduce((total, item) => total + (item.hp || 0), 0),
       maxMp: 50 + (player.jobLevel - 1) * 4 + (stats.INT - 1) * 5,
       attack: 11 + (player.level - 1) * 2 + (stats.STR - 1) * 3 + equipped.reduce((total, item) => total + (item.attack || 0), 0),
+      defense: (stats.VIT - 1) * .65 + equipped.reduce((total, item) => total + (item.defense || 0), 0),
     };
   }
 
   function updateAttributes(player) {
     Object.assign(player, derivedAttributes(player, player.stats));
-    player.nextXp = expNeeded(player.level);
-    player.nextJobXp = jobExpNeeded(player.jobLevel);
+    const { base, job } = CLASS_LEVEL_CAPS[player.classTier];
+    player.maxLevel = base;
+    player.maxJobLevel = job;
+    player.nextXp = player.level < base ? expNeeded(player.level) : 0;
+    player.nextJobXp = player.jobLevel < job ? jobExpNeeded(player.jobLevel) : 0;
+    if (player.nextXp === 0) player.xp = 0;
+    if (player.nextJobXp === 0) player.jobXp = 0;
     player.hp = Math.min(player.hp, player.maxHp);
     player.mp = Math.min(player.mp, player.maxMp);
   }
@@ -356,22 +475,36 @@
     return DIRECTIONS[(Math.round(Math.atan2(dy, dx) * 4 / Math.PI) + 8) % 8];
   }
 
+  function inGateApproach(x, y, gate) {
+    const { route, halfWidth } = gate;
+    const segment = route.findIndex(([endX], index) => index > 0 && x <= endX);
+    if (segment < 0) return false;
+    const [fromX, fromY] = route[segment - 1];
+    const [toX, toY] = route[segment];
+    const center = fromY + (toY - fromY) * (x - fromX) / (toX - fromX);
+    return Math.abs(y - center) <= halfWidth;
+  }
+
   function canStand(point, zone, margin = 10) {
     const { x, y } = point;
     const { left, right, top, bottom } = zone.bounds;
     if (!(x >= left && x <= right && y >= top && y <= bottom)) return false;
-    const innerGate = zone.innerGate;
-    if (innerGate && y < innerGate.approachY &&
-        (Math.abs(x - innerGate.x) > innerGate.halfWidth || (!innerGate.open && y < innerGate.y))) return false;
-    const gate = zone.gateApproaches?.find(gate => gate.outer > gate.inner ? x > gate.inner : x < gate.inner);
-    if (gate) {
-      const { route, halfWidth } = gate;
-      const segment = route.findIndex(([endX], index) => index > 0 && x <= endX);
-      if (segment < 0) return false;
-      const [fromX, fromY] = route[segment - 1];
-      const [toX, toY] = route[segment];
-      const center = fromY + (toY - fromY) * (x - fromX) / (toX - fromX);
-      if (Math.abs(y - center) > halfWidth) return false;
+    const approaches = zone.gateApproaches?.filter(gate => gate.outer > gate.inner ? x > gate.inner : x < gate.inner);
+    if (approaches?.length) {
+      if (!approaches.some(gate => inGateApproach(x, y, gate))) return false;
+    } else {
+      const innerGate = zone.innerGate;
+      if (innerGate && y < innerGate.approachY &&
+          (Math.abs(x - innerGate.x) > innerGate.halfWidth || (!innerGate.open && y < innerGate.y))) return false;
+      const shore = zone.northShore;
+      if (shore) {
+        const segment = shore.findIndex(([endX], index) => index > 0 && x <= endX);
+        if (segment > 0) {
+          const [fromX, fromY] = shore[segment - 1];
+          const [toX, toY] = shore[segment];
+          if (y < fromY + (toY - fromY) * (x - fromX) / (toX - fromX)) return false;
+        }
+      }
     }
     return !zone.obstacles.some(rect =>
       x > rect.x - margin && x < rect.x + rect.w + margin && y > rect.y - margin && y < rect.y + rect.h + margin);
@@ -489,8 +622,12 @@
     entity.actionTime = seconds;
   }
 
+  function isAreaAttack(enemy) {
+    return enemy.slam && enemy.attackStyle === (enemy.slam.style ?? 'pret-slam');
+  }
+
   function enemyImpactTime(enemy) {
-    return enemy.attackStyle === 'pret-slam' ? enemy.slam.recovery : enemy.actionDuration * (1 - STRIKE_PHASE);
+    return isAreaAttack(enemy) ? enemy.slam.recovery : enemy.actionDuration * (1 - STRIKE_PHASE);
   }
 
   function autoOptions(settings) {
@@ -530,9 +667,11 @@
     const skillsById = new Map(skills.map(skill => [skill.id, skill]));
     const skillSlots = readSkillSlots(saved?.skillSlots ?? (saved ? DEFAULT_SKILL_SLOTS : []));
     const state = {
-      player, zone: null, zoneInfo: null, enemies: [], npcs: [], portals: [], targetId: null,
+      player, zone: null, zoneInfo: null, enemies: [], npcs: [], interactables: [], portals: [], targetId: null,
       quest: { ...QUEST, status, count: progress, objective: QUEST_OBJECTIVES[status] },
       ruinsQuest: readRuinsQuest(saved?.ruinsQuest), cemeteryHunt: readCemeteryHunt(saved?.cemeteryKills, saved?.cemeteryRespawnAt),
+      harborUnlocked: saved?.harborUnlocked === true,
+      harborQuest: readHarborQuest(saved?.harborQuest),
       trackedQuest: null,
       skills, passiveSkills: Object.values(PASSIVE_SKILLS), skillSlots, itemSlots: readItemSlots(saved?.itemSlots),
       enabledSkills: readEnabledSkills(saved, skillSlots), items: ITEMS,
@@ -648,20 +787,23 @@
     }
 
     function exportSave() {
-      const { x, y, hp, mp, level, jobLevel, xp, jobXp, gold, stats, statPoints, inventory, equipment } = player;
+      const { x, y, hp, mp, level, jobLevel, classTier, xp, jobXp, gold, stats, statPoints, inventory, equipment, tradeCounts } = player;
       const { count, status } = state.quest;
       const { status: ruinsStatus, counts } = state.ruinsQuest;
+      const { status: harborStatus, count: harborCount, bossDefeated, loot, ferryUsed } = state.harborQuest;
       const position = state.dead ? zones.village.spawn : [x, y];
       const { range, hpBelow, mpBelow, skillIds } = state.auto;
       return JSON.stringify({ version: 1, savedAt: Date.now(), zone: state.dead ? 'village' : state.zone, quest: { status, count },
         ruinsQuest: { status: ruinsStatus, counts }, cemeteryKills: state.cemeteryHunt.count,
         cemeteryRespawnAt: state.cemeteryHunt.respawnAt,
+        harborUnlocked: state.harborUnlocked,
+        harborQuest: { status: harborStatus, count: harborCount, bossDefeated, loot, ferryUsed },
         trainingCooldowns: state.trainingCooldowns,
         trainingManaCosts: state.trainingManaCosts,
         auto: { range, hpBelow, mpBelow, skillIds }, skillSlots: state.skillSlots, itemSlots: state.itemSlots,
         enabledSkills: [...state.enabledSkills],
         player: { x: position[0], y: position[1], hp: state.dead ? player.maxHp : hp,
-          mp: state.dead ? player.maxMp : mp, level, jobLevel, xp, jobXp, gold, stats, statPoints, inventory, equipment } });
+          mp: state.dead ? player.maxMp : mp, level, jobLevel, classTier, xp, jobXp, gold, stats, statPoints, inventory, equipment, tradeCounts } });
     }
 
     function save() {
@@ -695,6 +837,8 @@
       state.quest.count = status === 'ready' || status === 'completed' ? QUEST.needed : progress;
       state.ruinsQuest = readRuinsQuest(restored.ruinsQuest);
       state.cemeteryHunt = readCemeteryHunt(restored.cemeteryKills, restored.cemeteryRespawnAt);
+      state.harborUnlocked = restored.harborUnlocked === true;
+      state.harborQuest = readHarborQuest(restored.harborQuest);
       setQuest(status);
       state.dead = false;
       attackCooldown = 0;
@@ -776,6 +920,8 @@
     function savedZone(id) {
       if (id === 'training' && zones.training) return id;
       if (id === 'cemetery' && zones.cemetery && state.quest.status === 'completed' && state.ruinsQuest.status === 'completed') return id;
+      if (id === 'harbor' && zones.harbor && state.harborUnlocked && state.quest.status === 'completed') return id;
+      if (id === 'nipa' && zones.nipa && ferryUnlocked() && state.harborQuest.ferryUsed) return id;
       if (id === 'ruins' && zones.ruins && state.quest.status === 'completed') return id;
       return 'village';
     }
@@ -801,7 +947,15 @@
       cancelMovement();
     }
 
-    function recordCemeteryKill(enemy) {
+    function spawnHarborBoss() {
+      const [x, y] = state.zoneInfo.bossSpawn;
+      const [waterX, waterY] = state.zoneInfo.bossEntrance;
+      const boss = createEnemy('harbor-boss', 'chalawan', x, y);
+      boss.entrance = { waterX, waterY, elapsed: 0, duration: MONSTERS.chalawan.entranceDuration };
+      state.enemies.push(boss);
+    }
+
+    function recordCemeteryKill(enemy, receivedKey) {
       const { count, needed } = state.cemeteryHunt;
       if (!enemy.boss && count >= needed) return;
       const hunt = enemy.boss ? readCemeteryHunt(0, Date.now() + CEMETERY_RESPAWN_DELAY) : readCemeteryHunt(count + 1);
@@ -810,7 +964,8 @@
         spawnCemeteryBoss();
         notice('ผีเปรตปรากฏตัวที่ลานพิธี');
       } else if (enemy.boss) {
-        notice(`ปราบผีเปรตสำเร็จ ฝูงมอนสเตอร์จะกลับมาใน ${CEMETERY_RESPAWN_DELAY / 1000} วินาที`);
+        const result = receivedKey ? 'ได้รับกุญแจผี 1 ดอก' : 'ปราบผีเปรตสำเร็จ';
+        notice(`${result} · ฝูงมอนสเตอร์จะกลับมาใน ${CEMETERY_RESPAWN_DELAY / 1000} วินาที`);
       }
       emit({ type: 'quest', status: hunt.status, count: hunt.count });
     }
@@ -828,21 +983,29 @@
       save();
     }
 
+    function updateInteractables() {
+      state.interactables = (state.zoneInfo.interactables ?? []).filter(entity =>
+        entity.type !== 'harbor-crate' || state.harborQuest.status === 'active');
+    }
+
     function enterZone(id, point, facing = 's') {
       const zone = zones[id];
       if (!zone) return;
       state.zone = id;
-      state.trackedQuest = id === 'cemetery' ? state.cemeteryHunt : id === 'ruins' ? state.ruinsQuest : state.quest;
+      state.trackedQuest = { cemetery: state.cemeteryHunt, ruins: state.ruinsQuest, harbor: state.harborQuest,
+        nipa: state.harborQuest }[id] ?? state.quest;
       state.zoneInfo = zone.innerGate ? {
         ...zone, innerGate: { ...zone.innerGate, open: state.ruinsQuest.status === 'completed' },
       } : zone;
       state.npcs = zone.npcs;
       state.portals = zone.portals;
+      updateInteractables();
       if (id !== 'cemetery') state.enemies = createZoneEnemies(zone);
       else if (state.cemeteryHunt.count === CEMETERY_HUNT.needed) spawnCemeteryBoss();
       else state.enemies = state.cemeteryHunt.respawnAt ? [] : createZoneEnemies(zone);
       const position = point && canStand(point, state.zoneInfo) ? point : { x: zone.spawn[0], y: zone.spawn[1] };
       placePlayer(position, facing);
+      if (id === 'harbor' && (state.harborQuest.status === 'fight' || state.harborQuest.loot === 'challenge')) spawnHarborBoss();
       emit({ type: 'zone', zone: id, zoneInfo: state.zoneInfo });
     }
 
@@ -854,7 +1017,7 @@
     }
 
     function nearestTown() {
-      // Positions belong to their own maps. Add distances to portals along the route.
+      // Positions belong to their own maps. Add distances to the exits along the route.
       const pending = [{ zone: state.zoneInfo, point: player, cost: 0 }];
       const visited = new Set();
       while (pending.length) {
@@ -863,9 +1026,11 @@
         if (visited.has(zone.id)) continue;
         if (zone.town) return zone;
         visited.add(zone.id);
-        for (const portal of zone.portals) {
+        const ferries = ferryUnlocked() ? (zone.interactables ?? []).filter(entity => entity.type === 'ferry') : [];
+        for (const portal of [...zone.portals, ...ferries]) {
           const next = zones[portal.target];
           if (!next || visited.has(next.id) || (portal.quest && state.quest.status !== 'completed')) continue;
+          if (portal.key && !state.harborUnlocked) continue;
           if (portal.id === zone.innerGate?.id && state.ruinsQuest.status !== 'completed') continue;
           const [x, y] = portal.arrival ?? next.arrival ?? next.spawn;
           pending.push({ zone: next, point: { x, y }, cost: cost + distance(point, portal) });
@@ -888,12 +1053,12 @@
     }
 
     function targetEnemy() {
-      return state.enemies.find(enemy => enemy.id === state.targetId && enemy.hp > 0);
+      return state.enemies.find(enemy => enemy.id === state.targetId && isFightable(enemy));
     }
 
     function selectTarget(id) {
       cancelMovement();
-      state.targetId = state.enemies.some(enemy => enemy.id === id && enemy.hp > 0) ? id : null;
+      state.targetId = state.enemies.some(enemy => enemy.id === id && isFightable(enemy)) ? id : null;
       return Boolean(state.targetId);
     }
 
@@ -912,7 +1077,7 @@
 
     function attack() {
       if (state.dead || player.stunTime > 0) return false;
-      const enemy = targetEnemy() || closestToPlayer(state.enemies.filter(entity => entity.hp > 0), 240);
+      const enemy = targetEnemy() || closestToPlayer(state.enemies.filter(isFightable), 240);
       if (!enemy) return false;
       state.targetId = enemy.id;
       state.autoAttack = true;
@@ -933,7 +1098,7 @@
 
     function discardableItemCount(id) {
       if (state.dead || typeof id !== 'string' || !Object.hasOwn(ITEMS, id)) return 0;
-      const reserved = id === 'rusty_sword' || player.equipment[ITEMS[id].slot] === id ? 1 : 0;
+      const reserved = id === 'rusty_sword' ? 1 : countEquipped(player.equipment, id);
       return Math.max(0, (player.inventory[id] ?? 0) - reserved);
     }
 
@@ -947,17 +1112,17 @@
     }
 
     function giveExperience(xp, jobXp) {
-      player.xp += xp;
-      player.jobXp += jobXp;
+      if (player.nextXp > 0) player.xp += xp;
+      if (player.nextJobXp > 0) player.jobXp += jobXp;
       let leveled = false;
-      while (player.xp >= player.nextXp) {
+      while (player.nextXp > 0 && player.xp >= player.nextXp) {
         player.xp -= player.nextXp;
         player.level++;
         player.statPoints += 3;
         updateAttributes(player);
         leveled = true;
       }
-      while (player.jobXp >= player.nextJobXp) {
+      while (player.nextJobXp > 0 && player.jobXp >= player.nextJobXp) {
         player.jobXp -= player.nextJobXp;
         player.jobLevel++;
         player.statPoints++;
@@ -973,7 +1138,10 @@
 
     function setQuest(status, quest = state.quest) {
       quest.status = status;
-      quest.objective = (quest.goals ? RUINS_QUEST_OBJECTIVES : QUEST_OBJECTIVES)[status];
+      const objectives = quest === state.harborQuest ? HARBOR_QUEST_OBJECTIVES :
+        quest === state.ruinsQuest ? RUINS_QUEST_OBJECTIVES : QUEST_OBJECTIVES;
+      quest.objective = objectives[status];
+      if (quest === state.harborQuest) updateInteractables();
       if (quest === state.ruinsQuest && status === 'completed' && state.zoneInfo.innerGate) {
         state.zoneInfo.innerGate.open = true;
       }
@@ -996,7 +1164,7 @@
       enemy.respawnIn = 10;
       enemy.aggro = false;
       enemy.moving = false;
-      enemy.action = 'death';
+      pose(enemy, 'death', data.collapseDuration ?? .4);
       player.gold += halfGold(data.gold);
       if (state.targetId === enemy.id) {
         state.targetId = null;
@@ -1007,10 +1175,20 @@
         const rate = levelGap >= 10 ? .7 : 1;
         giveExperience(Math.round(data.xp * rate), Math.round(data.jobXp * rate));
       }
-      dropLoot(enemy, data.drop);
-      const cardChance = data.boss ? BOSS_CARD_DROP_CHANCE : MONSTER_CARD_DROP_CHANCE;
+      if (data.drop) dropLoot(enemy, data.drop);
+      const receivedKey = enemy.type === 'pret' && !player.inventory.ghost_key;
+      if (receivedKey) dropLoot(enemy, 'ghost_key');
+      const cardChance = data.cardChance ?? (data.boss ? BOSS_CARD_DROP_CHANCE : MONSTER_CARD_DROP_CHANCE);
       if (data.card && Math.random() < cardChance) dropLoot(enemy, data.card);
-      if (state.zone === 'cemetery') recordCemeteryKill(enemy);
+      if (state.zone === 'cemetery') recordCemeteryKill(enemy, receivedKey);
+      if (enemy.type === 'chalawan') {
+        const quest = state.harborQuest;
+        quest.bossDefeated = true;
+        quest.loot = 'earned';
+        const turnIn = quest.status === 'fight';
+        setQuest(turnIn ? 'ready' : 'completed', quest);
+        notice(turnIn ? 'ได้รับเกราะและการ์ดชาละวัน · นำหีบไปให้นายท่าอิน' : 'ได้รับเกราะและการ์ดชาละวัน');
+      }
       if (state.quest.status === 'active' && state.zone === 'village' && enemy.type === 'village_monkey') {
         state.quest.count++;
         if (state.quest.count >= state.quest.needed) {
@@ -1039,16 +1217,12 @@
       return Math.min(0.8, 0.06 + (stats.LUK - 1) * 0.01 + precision);
     }
 
-    function defense(stats = player.stats) {
-      return (stats.VIT - 1) * 0.65;
-    }
-
     function basicAttackInterval(stats = player.stats) {
       return Math.max(0.29, 0.68 - (stats.AGI - 1) * 0.026);
     }
 
     function combatStats(stats = player.stats) {
-      return { ...derivedAttributes(player, stats), defense: defense(stats), critical: criticalChance(stats),
+      return { ...derivedAttributes(player, stats), critical: criticalChance(stats),
         attacksPerSecond: 1 / basicAttackInterval(stats) };
     }
 
@@ -1059,17 +1233,35 @@
       if (enemy.hp === 0) defeatEnemy(enemy);
     }
 
+    function damageWithChalawanCard(baseDamage, bleeding) {
+      const bonus = bleeding && countEquipped(player.equipment, 'chalawan_card') ? CHALAWAN_BLEED_BONUS : 0;
+      return Math.max(1, Math.round(baseDamage * (1 + bonus)));
+    }
+
+    function applyBleed(target, hitDamage) {
+      target.bleed = { damage: Math.max(1, Math.round(hitDamage * BLEED_DAMAGE_FRACTION)),
+        nextTick: simulationTime + 1, ticksLeft: BLEED_TICKS };
+    }
+
+    function consumeBleedTick(target) {
+      const bleed = target.bleed;
+      if (!bleed || simulationTime < bleed.nextTick) return 0;
+      bleed.nextTick += 1;
+      if (--bleed.ticksLeft === 0) target.bleed = null;
+      return bleed.damage;
+    }
+
     function hitEnemy(enemy, multiplier, skill = null) {
       if (!enemy || enemy.hp <= 0) return;
       const wieldingSword = Boolean(player.equipment.weapon);
       const mastery = wieldingSword ? passiveBonus(PASSIVE_SKILLS.mastery) : 0;
       const critical = Math.random() < criticalChance();
       const power = player.attack * (0.92 + Math.random() * 0.16) + (player.stats.DEX - 1);
-      const damage = Math.max(1, Math.round(power * multiplier * (1 + mastery) * (critical ? 1.5 : 1)));
+      const baseDamage = power * multiplier * (1 + mastery) * (critical ? 1.5 : 1);
+      const damage = damageWithChalawanCard(baseDamage, Boolean(enemy.bleed));
       const bleedChance = passiveBonus(PASSIVE_SKILLS.bleed);
       if (enemy.hp > damage && (skill === 'thrust' || (bleedChance > 0 && Math.random() < bleedChance))) {
-        enemy.bleed = { damage: Math.max(1, Math.round(damage * BLEED_DAMAGE_FRACTION)),
-          nextTick: simulationTime + 1, ticksLeft: BLEED_TICKS };
+        applyBleed(enemy, Math.round(baseDamage));
       }
       if (enemy.type !== 'dummy') {
         enemy.aggro = true;
@@ -1077,7 +1269,7 @@
         if (interrupts) enemy.slowTime = SLOW_DURATION;
         enemy.cooldown = Math.max(interrupts ? INTERRUPT_DELAY * (1 - SLOW_REDUCTION) : 0.24, enemy.cooldown);
       }
-      const slamming = enemy.action === 'attack' && enemy.attackStyle === 'pret-slam';
+      const slamming = enemy.action === 'attack' && isAreaAttack(enemy);
       if (!slamming || skill === 'interrupt') pose(enemy, 'hit', 0.14);
       damageEnemy(enemy, damage, { critical, skill });
     }
@@ -1085,10 +1277,10 @@
     function hurtPlayer(enemy, slam = null) {
       const data = MONSTERS[enemy.type];
       const guard = player.guardTime > 0 ? 0.5 : 1;
-      const damage = Math.max(1, Math.round((data.atk - defense()) * guard));
-      player.hp = Math.max(0, player.hp - damage);
+      const damage = Math.max(1, Math.round((data.atk - player.defense) * guard));
       let stunTime = 0;
-      if (player.hp > 0) {
+      if (player.hp > damage) {
+        if (!slam && data.basicBleed) applyBleed(player, damage);
         stunTime = slam?.stunTime ?? (data.basicStun && Math.random() < data.basicStun.chance ? data.basicStun.duration : 0);
         if (stunTime > 0) {
           player.stunTime = Math.max(player.stunTime, stunTime);
@@ -1099,10 +1291,15 @@
           pose(player, 'hit', 0.16);
         }
       }
-      emit({ type: 'damage', enemy: false, x: player.x, y: player.y, value: damage, guarded: guard < 1,
-        source: { x: enemy.x, y: enemy.y }, stunTime });
+      damagePlayer(damage, { guarded: guard < 1, source: { x: enemy.x, y: enemy.y }, stunTime });
+    }
+
+    function damagePlayer(damage, details) {
+      player.hp = Math.max(0, player.hp - damage);
+      emit({ type: 'damage', enemy: false, x: player.x, y: player.y, value: damage, ...details });
       if (player.hp > 0) return;
       state.dead = true;
+      player.bleed = null;
       setAuto(false);
       pendingStrike = null;
       reviveIn = 3;
@@ -1144,7 +1341,7 @@
       let contact = null;
       for (const enemy of targets) {
         const gap = distance(player, enemy);
-        if (enemy.hp <= 0 || !state.enemies.includes(enemy) || gap > range || !straightPath(player, enemy, state.zoneInfo)) continue;
+        if (!isFightable(enemy) || !state.enemies.includes(enemy) || gap > range || !straightPath(player, enemy, state.zoneInfo)) continue;
         if (aimed && gap > 0) player.attackDir = direction(enemy.x - player.x, enemy.y - player.y);
         if (origin && !contact) contact = { x: enemy.x, y: enemy.y };
         if (style === 'dash') dashPastTarget(enemy, gap);
@@ -1161,21 +1358,26 @@
     }
 
     function castSkill(skill, automatic = false) {
-      if (state.dead || player.stunTime > 0 || pendingStrike || !skill) return false;
+      if (state.dead || player.stunTime > 0 || !skill) return false;
       const unavailable = reason => {
         if (!automatic) notice(reason);
         return false;
       };
-      if (!isSkillUnlocked(skill)) return unavailable('เลเวลหรือสเตตัสยังไม่ถึงเงื่อนไขสกิล');
-      if (!state.enabledSkills.has(skill.id)) return unavailable('เปิดใช้งานสกิลนี้ในหน้าสกิลก่อน');
+      const missing = skillRequirements(skill).filter(({ current, minimum }) => !(current >= minimum));
+      if (missing.length) {
+        const requirements = missing.map(({ label, minimum }) => `${label} ${minimum}`).join(' · ');
+        return unavailable(`${skill.name} ต้องการ ${requirements}`);
+      }
+      if (!state.enabledSkills.has(skill.id)) return unavailable(`กด K แล้วเปิดใช้งาน ${skill.name}`);
       const cooldowns = skillCooldownsEnabled();
       const manaCost = skillManaCostsEnabled() ? skill.cost : 0;
       if (cooldowns && skill.remaining > 0) return unavailable('สกิลกำลังพัก');
       if (player.mp < manaCost) return unavailable('มานาไม่พอ');
+      if (pendingStrike) return unavailable('รอให้การโจมตีปัจจุบันจบก่อน');
       const { strike } = skill;
       let targets;
       if (strike?.area) {
-        targets = state.enemies.filter(enemy => enemy.hp > 0 && distance(player, enemy) <= strike.range &&
+        targets = state.enemies.filter(enemy => isFightable(enemy) && distance(player, enemy) <= strike.range &&
           straightPath(player, enemy, state.zoneInfo));
         if (!targets.length) return unavailable('ไม่มีมอนสเตอร์ในระยะ');
       } else if (strike) {
@@ -1229,22 +1431,43 @@
       return true;
     }
 
-    function equipItem(id) {
-      const item = player.inventory[id] && ITEMS[id];
-      if (!item?.slot || player.equipment[item.slot] === id) return false;
+    function equipItem(id, cardSlot = 'card') {
+      const item = Object.hasOwn(ITEMS, id) && ITEMS[id];
+      if (!item?.slot || countEquipped(player.equipment, id) >= (player.inventory[id] ?? 0)) return false;
+      const slot = item.slot === 'card' ? cardSlot : item.slot;
+      if (item.slot === 'card' && !CARD_SLOTS.some(entry => entry.id === slot && player.classTier >= entry.classTier)) return false;
+      if (player.equipment[slot] === id) return false;
       if (!meetsItemLevel(item, player.level)) {
         notice(`ต้องการ Base Lv. ${item.baseLevel} เพื่อสวม${item.name}`);
         return false;
       }
-      player.equipment[item.slot] = id;
+      player.equipment[slot] = id;
       updateAttributes(player);
       notice(`สวม${item.name}`);
       save();
       return true;
     }
 
+    function unequip(slot) {
+      if (!player.equipment[slot]) return false;
+      const item = ITEMS[player.equipment[slot]];
+      delete player.equipment[slot];
+      updateAttributes(player);
+      save();
+      notice(`ถอด${item.name}แล้ว`);
+      return true;
+    }
+
+    function unequipCard(slot) {
+      return CARD_SLOTS.some(entry => entry.id === slot) && unequip(slot);
+    }
+
     function nearVendor() {
       return state.npcs.some(npc => npc.type === 'vendor' && distance(npc, player) <= INTERACT_RANGE + 10);
+    }
+
+    function recordTrade(counts, id, count) {
+      counts[id] = Math.min(Number.MAX_SAFE_INTEGER, (counts[id] ?? 0) + count);
     }
 
     function buyItem(id) {
@@ -1253,18 +1476,27 @@
       if (player.gold < item.price) { notice('เบี้ยไม่พอ'); return false; }
       player.gold -= item.price;
       addItem(id);
-      notice(`ซื้อ${item.name}แล้ว`);
+      recordTrade(player.tradeCounts.bought, id, 1);
       save();
+      notice(`ซื้อ${item.name} ×1 แล้ว`);
       return true;
     }
 
-    function sellItem(id) {
-      const item = player.inventory[id] && ITEMS[id];
-      if (!item?.sell || !nearVendor() || state.dead || player.equipment[item.slot] === id) return false;
-      removeItem(id);
-      player.gold += item.sell;
-      notice(`ขาย${item.name}แล้ว`);
+    function sellableItemCount(id) {
+      const item = Object.hasOwn(ITEMS, id) && ITEMS[id];
+      if (!item?.sell || countEquipped(player.equipment, id) > 0) return 0;
+      return player.inventory[id] ?? 0;
+    }
+
+    function sellItem(id, count = 1) {
+      if (state.dead || !nearVendor() || !Number.isSafeInteger(count) || count < 1 || count > sellableItemCount(id)) return false;
+      const item = ITEMS[id];
+      const payment = item.sell * count;
+      removeItem(id, count);
+      player.gold += payment;
+      recordTrade(player.tradeCounts.sold, id, count);
       save();
+      notice(`ขาย${item.name} ×${count} ได้ ${payment} เบี้ย`);
       return true;
     }
 
@@ -1304,6 +1536,19 @@
       return true;
     }
 
+    function startHarborChallenge() {
+      const quest = state.harborQuest;
+      const owner = state.npcs.find(npc => npc.id === quest.npcId);
+      if (state.dead || state.zone !== 'harbor' || quest.status !== 'completed' || quest.loot !== 'unclaimed' ||
+          state.interacting !== quest.npcId || !owner || distance(player, owner) > INTERACT_RANGE) return false;
+      quest.loot = 'challenge';
+      quest.objective = HARBOR_QUEST_OBJECTIVES.fight;
+      spawnHarborBoss();
+      save();
+      notice('ชาละวันขึ้นมาท้าประลองที่กลางลาน!');
+      return true;
+    }
+
     function talkTo(npc) {
       const quest = state.trackedQuest;
       const ruins = quest === state.ruinsQuest;
@@ -1313,28 +1558,36 @@
       if (npc.id === 'guard') text = 'ข้ามสะพานไม้แล้วลอดประตูอิฐฝั่งตรงข้าม จะถึงดงเจดีย์ร้าง';
       if (npc.id === quest.npcId) {
         const { status } = quest;
+        const harborText = quest === state.harborQuest ? HARBOR_QUEST_DIALOGUE[status] : null;
         if (status === 'available') {
           questView = 'offer';
-          text = ruins
+          text = harborText ?? (ruins
             ? `ทางเข้าป่าช้าวัดร้างยังปิดอยู่ ${quest.description} ข้าจะเปิดประตูให้เมื่อเจ้ากลับมา`
-            : 'ฝากกำจัดลิงป่า Lv. 1 สัก 3 ตัวให้ลุงหน่อย พวกมันลงมาป้วนเปี้ยนอยู่ทุ่งทางตะวันออก';
+            : 'ฝากกำจัดลิงป่า Lv. 1 สัก 3 ตัวให้ลุงหน่อย พวกมันลงมาป้วนเปี้ยนอยู่ทุ่งทางตะวันออก');
         } else if (status === 'ready') {
           setQuest('completed', quest);
-          if (!ruins) {
+          if (quest.rewards.item) {
             const { item, gold, xp, jobXp } = quest.rewards;
             player.gold += gold;
             addItem(item);
             giveExperience(xp, jobXp);
           }
           questView = 'reward';
-          text = ruins ? 'ข้าเปิดทางสู่ป่าช้าวัดร้างแล้ว เดินไปลอดซุ้มอิฐด้านตะวันออกเฉียงเหนือได้เลย'
-            : 'ขอบใจมาก ทีนี้ข้ามสะพานไม้แล้วลอดประตูอิฐไปดงเจดีย์ร้างได้แล้ว';
-        } else if (status === 'active') {
+          text = harborText ?? (ruins ? 'ข้าเปิดทางสู่ป่าช้าวัดร้างแล้ว เดินไปลอดซุ้มอิฐด้านตะวันออกเฉียงเหนือได้เลย'
+            : 'ขอบใจมาก ทีนี้ข้ามสะพานไม้แล้วลอดประตูอิฐไปดงเจดีย์ร้างได้แล้ว');
+        } else if (status === 'active' || status === 'fight') {
           questView = 'progress';
-          text = ruins ? questProgress(quest) : `จัดการลิงป่าได้ ${quest.count} จาก ${quest.needed} ตัวแล้ว`;
+          text = harborText ?? (ruins ? questProgress(quest) : `จัดการลิงป่าได้ ${quest.count} จาก ${quest.needed} ตัวแล้ว`);
+        } else if (quest === state.harborQuest && quest.loot !== 'earned') {
+          if (quest.loot === 'unclaimed') {
+            questView = 'challenge';
+            text = 'ชาละวันยังวนเวียนอยู่ใต้ท่า หากเจ้าพร้อม ข้าจะเรียกมันขึ้นมาที่ลาน รางวัลคือเกราะหนังเจ้าแห่งลุ่มแม่น้ำและการ์ดชาละวัน';
+          } else {
+            text = 'ชาละวันรอเจ้าอยู่ที่กลางลาน';
+          }
         } else {
-          text = ruins ? 'ทางไปป่าช้าวัดร้างอยู่ตรงซุ้มอิฐด้านตะวันออกเฉียงเหนือ'
-            : 'ถ้าจะไปดงเจดีย์ร้าง ให้เดินข้ามสะพานไม้ไปลอดประตูอิฐทางตะวันออก';
+          text = harborText ?? (ruins ? 'ทางไปป่าช้าวัดร้างอยู่ตรงซุ้มอิฐด้านตะวันออกเฉียงเหนือ'
+            : 'ถ้าจะไปดงเจดีย์ร้าง ให้เดินข้ามสะพานไม้ไปลอดประตูอิฐทางตะวันออก');
         }
         save();
       }
@@ -1344,6 +1597,27 @@
     function finishInteraction(entity) {
       cancelMovement();
       player.dir = direction(entity.x - player.x, entity.y - player.y);
+      if (entity.type === 'harbor-crate') {
+        const quest = state.harborQuest;
+        if (quest.status !== 'active') return false;
+        quest.count = quest.needed;
+        spawnHarborBoss();
+        setQuest('fight', quest);
+        save();
+        notice('เก็บหีบแล้ว ระวังชาละวัน!');
+        return true;
+      }
+      if (entity.type === 'ferry') {
+        const destination = zones[entity.target]?.name;
+        if (!ferryUnlocked() || !destination) {
+          notice('ทำภารกิจเรือเที่ยวสุดท้ายให้เสร็จเพื่อเปิดท่า');
+          return false;
+        }
+        state.interacting = entity.id;
+        emit({ type: 'ferry', id: entity.id, origin: state.zoneInfo.name, destination, fare: ferryFare(entity),
+          firstTrip: Boolean(entity.fare && !state.harborQuest.ferryUsed) });
+        return true;
+      }
       if (entity.id === state.zoneInfo.innerGate?.id) {
         if (!state.zoneInfo.innerGate.open) {
           notice('ทำภารกิจของพรานหม่องให้เสร็จก่อนผ่านประตู');
@@ -1360,6 +1634,18 @@
         notice('ทำภารกิจของลุงขามให้เสร็จก่อนผ่านประตู');
         return false;
       }
+      if (entity.key && !state.harborUnlocked) {
+        if (!player.inventory[entity.key]) {
+          notice('ต้องใช้กุญแจผีจากบอสผีเปรตเพื่อเปิดประตูท่าเรือท่าข้าม');
+          return false;
+        }
+        if (!zones[entity.target]) return false;
+        removeItem(entity.key);
+        state.harborUnlocked = true;
+        const entered = travelThrough(entity);
+        if (entered) notice('ใช้กุญแจผีเปิดประตูท่าเรือท่าข้ามแล้ว');
+        return entered;
+      }
       return travelThrough(entity);
     }
 
@@ -1372,10 +1658,29 @@
       return true;
     }
 
+    function ferryUnlocked() {
+      return state.harborUnlocked && state.harborQuest.status === 'completed';
+    }
+
+    function ferryFare(entity) {
+      return state.harborQuest.ferryUsed ? entity.fare ?? 0 : 0;
+    }
+
+    function boardFerry(id) {
+      if (state.dead || player.stunTime > 0 || !ferryUnlocked() || id !== state.interacting) return false;
+      const ferry = state.interactables.find(entity => entity.type === 'ferry' && entity.id === id);
+      if (!ferry || !zones[ferry.target] || distance(player, ferry) > (ferry.reach ?? INTERACT_RANGE)) return false;
+      const fare = ferryFare(ferry);
+      if (player.gold < fare) { notice('เบี้ยไม่พอสำหรับค่าเรือ'); return false; }
+      player.gold -= fare;
+      if (ferry.fare) state.harborQuest.ferryUsed = true;
+      return travelThrough(ferry);
+    }
+
     function interact(id) {
       if (state.dead || player.stunTime > 0) return false;
       setAuto(false);
-      const entities = [...state.npcs, ...state.portals];
+      const entities = [...state.npcs, ...state.interactables, ...state.portals];
       const entity = id ? entities.find(candidate => candidate.id === id) : closestToPlayer(entities, 145);
       if (!entity) { notice('ไม่มีใครอยู่ใกล้พอให้คุย'); return false; }
       cancelMovement();
@@ -1450,12 +1755,16 @@
     }
 
     function updateEnemy(enemy, dt) {
-      const bleed = enemy.bleed;
-      if (bleed && simulationTime >= bleed.nextTick) {
-        bleed.nextTick += 1;
-        if (--bleed.ticksLeft === 0) enemy.bleed = null;
-        damageEnemy(enemy, bleed.damage, { status: 'bleed' });
+      if (enemy.entrance) {
+        enemy.entrance.elapsed += dt;
+        if (enemy.entrance.elapsed >= enemy.entrance.duration) {
+          enemy.entrance = null;
+          enemy.dir = direction(player.x - enemy.x, player.y - enemy.y);
+        }
+        return;
       }
+      const bleedDamage = consumeBleedTick(enemy);
+      if (bleedDamage) damageEnemy(enemy, damageWithChalawanCard(bleedDamage, true), { status: 'bleed' });
       if (enemy.type === 'dummy') {
         if (enemy.hp < enemy.maxHp && simulationTime >= enemy.lastHitAt + DUMMY_RECOVERY_DELAY) {
           enemy.hp = enemy.maxHp;
@@ -1466,7 +1775,8 @@
       if (enemy.hp <= 0) {
         if (enemy.boss && !enemy.visible) return;
         enemy.respawnIn -= dt;
-        enemy.visible = enemy.respawnIn > 9.6;
+        enemy.actionTime = Math.max(0, enemy.actionTime - dt);
+        enemy.visible = enemy.actionTime > 0;
         if (enemy.respawnIn <= 0 && !enemy.boss) {
           Object.assign(enemy, enemy.origin, { hp: enemy.maxHp, action: 'idle', visible: true, wander: null, wanderIn: 2 });
         }
@@ -1482,6 +1792,7 @@
       if (slam) enemy.slamCooldown = Math.max(0, enemy.slamCooldown - dt);
       const gap = distance(enemy, player);
       const playerReachable = gap < 245 && straightPath(enemy, player, state.zoneInfo);
+      if (enemy.type === 'chalawan' && gap < 180 && playerReachable) enemy.aggro = true;
       if ((state.zone === 'ruins' || state.zone === 'cemetery') && gap < 100 && playerReachable) enemy.aggro = true;
       if (enemy.aggro && (!playerReachable || distance(enemy, enemy.origin) > 220 || state.dead)) {
         enemy.aggro = false;
@@ -1490,7 +1801,7 @@
       if (enemy.action === 'attack') {
         const impact = enemyImpactTime(enemy);
         if (enemy.actionTime > impact && enemy.actionTime - actionStep <= impact) {
-          const groundSlam = enemy.attackStyle === 'pret-slam' ? slam : null;
+          const groundSlam = isAreaAttack(enemy) ? slam : null;
           if (groundSlam) emit({ type: 'boss-slam' });
           if (!state.dead && playerReachable && gap <= (groundSlam?.radius ?? attackRange + 12)) hurtPlayer(enemy, groundSlam);
         }
@@ -1499,7 +1810,8 @@
       }
       if (enemy.aggro && enemy.action !== 'hit') {
         if (slam && enemy.slamCooldown === 0 && enemy.cooldown === 0 && gap <= slam.radius) {
-          enemy.attackStyle = 'pret-slam';
+          enemy.attackStyle = slam.style ?? 'pret-slam';
+          if (slam.style === 'tail-sweep') enemy.dir = direction(player.x - enemy.x, player.y - enemy.y);
           enemy.slamCooldown = slam.cooldown;
           enemy.cooldown = details.attackInterval;
           pose(enemy, 'attack', slam.windup + slam.recovery);
@@ -1568,7 +1880,7 @@
       if (autoSearchWait > 0) return;
       autoSearchWait = 0.3;
       const candidates = state.enemies
-        .filter(enemy => enemy.hp > 0 && distance(player, enemy) <= AUTO_RANGES[range])
+        .filter(enemy => isFightable(enemy) && distance(player, enemy) <= AUTO_RANGES[range])
         .sort((a, b) => distance(player, a) - distance(player, b));
       for (const enemy of candidates) {
         const route = pathTo(player, enemy, state.zoneInfo);
@@ -1587,6 +1899,8 @@
       simulationTime += dt;
       finishCemeteryRespawn();
       for (const skill of state.skills) skill.remaining = Math.max(0, skill.remaining - dt);
+      const bleedDamage = consumeBleedTick(player);
+      if (bleedDamage) damagePlayer(bleedDamage, { status: 'bleed' });
       if (state.dead) {
         reviveIn -= dt;
         if (reviveIn <= 0) {
@@ -1625,8 +1939,9 @@
     enterZone(zone, Array.isArray(spawn) ? { x: spawn[0], y: spawn[1] } : spawn);
     return { state, update, moveTo, selectTarget, attack, basicAttackRange: BASIC_ATTACK_RANGE,
       distanceTo: point => distance(player, point), useSkill, getSlotSkill, assignSkill, clearSkillSlots,
-      skillRequirements, isSkillUnlocked, isSkillEnabled, enableSkill, resetLevels, resetCharacter, interact, useItem, equipItem,
-      itemAction, assignItemSlot, discardableItemCount, discardItem, acceptQuest, questProgress, buyItem, sellItem,
+      skillRequirements, isSkillUnlocked, isSkillEnabled, enableSkill, resetLevels, resetCharacter, interact, boardFerry, useItem, equipItem,
+      cardSlots: CARD_SLOTS, unequipCard, unequipArmor: () => unequip('armor'), equippedItemCount: id => countEquipped(player.equipment, id),
+      itemAction, assignItemSlot, discardableItemCount, discardItem, acceptQuest, startHarborChallenge, questProgress, buyItem, sellableItemCount, sellItem,
       raiseStat, statAllocation, applyStatPoints, combatStats,
       setAuto, configureAuto, skillCooldownsEnabled, setTrainingCooldowns, skillManaCostsEnabled, setTrainingManaCosts,
       save, exportSave, importSave,
@@ -1634,5 +1949,7 @@
   }
 
   window.AyothayaGame = { create, strikePhase: STRIKE_PHASE, autoHealBelow: AUTO_HEAL_BELOW,
-    guardDuration: GUARD_DURATION, dashOvershoot: DASH_OVERSHOOT, pretSlam: MONSTERS.pret.slam };
+    guardDuration: GUARD_DURATION, dashOvershoot: DASH_OVERSHOOT, pretSlam: MONSTERS.pret.slam,
+    chalawan: { slam: MONSTERS.chalawan.slam, entranceDuration: MONSTERS.chalawan.entranceDuration,
+      biteDuration: MONSTERS.chalawan.windup, bleedDuration: BLEED_TICKS, collapseDuration: MONSTERS.chalawan.collapseDuration } };
 })();

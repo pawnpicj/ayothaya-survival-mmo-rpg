@@ -124,11 +124,46 @@ test('TC-QUEST-01 | Village quest, combat rewards and level progression', () => 
 
 test('TC-EXP-01 | Monster EXP pays 70% from a gap of 10 and stops from a gap of 15', () => {
   for (const [level, xp, jobXp] of [[10, 14, 7], [11, 10, 5], [15, 10, 5], [16, 0, 0]]) {
-    const game = arena([['village_monkey', 806, 610]], { level, jobLevel: 30 });
+    const game = arena([['village_monkey', 806, 610]], { level, jobLevel: 9 });
     defeat(game, 'village_monkey');
     assert.deepEqual([game.state.player.xp, game.state.player.jobXp], [xp, jobXp]);
     assert.equal(game.state.player.gold, 14);
     assert.equal(game.state.player.inventory.monkey_claw, 1);
+  }
+});
+
+test('Class caps stop Base and Job level-ups and discard excess EXP', () => {
+  for (const [classTier, baseCap, jobCap] of [[1, 35, 10], [2, 99, 35], [3, 99, 50]]) {
+    const game = fixture({
+      quest: { status: 'ready', count: 3 },
+      player: { classTier, x: 455, y: 151, level: baseCap - 1, jobLevel: jobCap - 1,
+        xp: 47 + (baseCap - 2) * 29, jobXp: 29 + (jobCap - 2) * 17, statPoints: 0 },
+    });
+    talk(game, 'elder');
+    const { player } = game.state;
+    assert.deepEqual([player.level, player.jobLevel], [baseCap, jobCap]);
+    assert.deepEqual([player.xp, player.jobXp, player.nextXp, player.nextJobXp], [0, 0, 0, 0]);
+    assert.equal(player.statPoints, 4);
+
+    const saved = JSON.parse(game.exportSave());
+    saved.player.level += 1;
+    saved.player.jobLevel += 1;
+    saved.player.xp = 1000;
+    saved.player.jobXp = 1000;
+    const restored = create({ storage: memoryStorage(JSON.stringify(saved)) }).state.player;
+    assert.deepEqual([restored.level, restored.jobLevel, restored.xp, restored.jobXp], [baseCap, jobCap, 0, 0]);
+    assert.equal(restored.statPoints, 4);
+  }
+});
+
+test('A capped EXP track does not block gains on the other track', () => {
+  for (const [level, jobLevel, xp, jobXp] of [[35, 9, 0, 14], [34, 10, 29, 0], [35, 10, 0, 0]]) {
+    const game = fixture({ quest: { status: 'ready', count: 3 }, player: { x: 455, y: 151, level, jobLevel } });
+    talk(game, 'elder');
+    const { player } = game.state;
+    assert.deepEqual([player.level, player.jobLevel, player.xp, player.jobXp], [level, jobLevel, xp, jobXp]);
+    assert.equal(player.statPoints, 0);
+    assert.equal(player.inventory.bronze_sword, 1);
   }
 });
 
@@ -318,6 +353,7 @@ test('TC-CEM-01 | Cemetery progress is saved and the hundredth kill spawns one r
   assert.equal(state.trackedQuest, state.cemeteryHunt);
   const [boss] = state.enemies.filter(enemy => enemy.boss);
   assert.equal(boss.name, 'ผีเปรต');
+  assert.deepEqual([boss.hp, boss.maxHp], [5500, 5500]);
   assert.deepEqual([boss.x, boss.y], [1075, 365]);
   assert.equal(state.enemies.length, 1);
 
@@ -327,6 +363,7 @@ test('TC-CEM-01 | Cemetery progress is saved and the hundredth kill spawns one r
     const reloaded = create({ storage: memoryStorage(restored.exportSave()) });
     assert.equal(reloaded.state.enemies.length, 1);
     assert.ok(reloaded.state.enemies[0].boss);
+    assert.equal(reloaded.state.enemies[0].hp, 5500);
     Object.assign(reloaded.state.player, { x: 980, y: 365 });
     defeat(reloaded, 'pret');
     assert.equal(reloaded.state.cemeteryHunt.count, 0);
@@ -370,7 +407,7 @@ test('TC-CEM-02 | Pret card uses the boss drop rate of 0.025%', () => {
     for (const [roll, wins] of [[.000249, true], [.00025, false]]) {
       const game = fixture({
         zone: 'cemetery', quest: villageComplete, ruinsQuest: ruinsComplete, cemeteryKills: 100,
-        player: { x: 980, y: 365, level: 30, jobLevel: 30, stats: { STR: 720 } },
+        player: { x: 980, y: 365, classTier: 2, level: 30, jobLevel: 30, stats: { STR: 720 } },
       });
       sandbox.Math.random = () => roll;
       defeat(game, 'pret');
@@ -382,6 +419,307 @@ test('TC-CEM-02 | Pret card uses the boss drop rate of 0.025%', () => {
   } finally {
     sandbox.Math.random = random;
   }
+});
+
+test('Pret guarantees one ghost key only when the bag has none', () => {
+  for (const startingCount of [0, 1]) {
+    const game = fixture({
+      zone: 'cemetery', quest: villageComplete, ruinsQuest: ruinsComplete, cemeteryKills: 100,
+      player: { x: 980, y: 365, level: 30, stats: { STR: 999 }, inventory: { ghost_key: startingCount } },
+    });
+    const drops = [];
+    game.subscribe(event => { if (event.type === 'loot' && event.itemId === 'ghost_key') drops.push(event.count); });
+    defeat(game, 'pret');
+    assert.deepEqual(drops, startingCount ? [] : [1]);
+    assert.equal(game.state.player.inventory.ghost_key, 1);
+    const restored = create({ storage: memoryStorage(game.exportSave()) });
+    assert.equal(restored.state.player.inventory.ghost_key, 1);
+  }
+});
+
+test('The northwestern ruins gate consumes one key, opens the harbor, and stays open across saves', () => {
+  const starting = { zone: 'ruins', quest: villageComplete, ruinsQuest: ruinsComplete, player: { x: 320, y: 410 } };
+  const locked = fixture(starting);
+  const notices = [];
+  locked.subscribe(event => { if (event.type === 'notice') notices.push(event.text); });
+  assert.ok(locked.interact('harbor-gate'));
+  advanceUntil(locked, () => notices.some(text => text.includes('ต้องใช้กุญแจผี')), 'Should reach the locked northwest gate');
+  assert.equal(locked.state.zone, 'ruins');
+  assert.equal(locked.state.harborUnlocked, false);
+
+  const game = fixture({ ...starting, player: { ...starting.player, inventory: { ghost_key: 1 } } });
+  assert.ok(game.interact('harbor-gate'));
+  advanceUntil(game, () => game.state.zone === 'harbor', 'Should walk to the gate and enter the harbor');
+  assert.equal(game.state.harborUnlocked, true);
+  assert.equal(game.state.player.inventory.ghost_key, undefined);
+
+  const restored = create({ storage: memoryStorage(game.exportSave()) });
+  assert.equal(restored.state.zone, 'harbor');
+  assert.ok(restored.interact('harbor-exit'));
+  advanceUntil(restored, () => restored.state.zone === 'ruins', 'Should return to the ruins');
+  assert.ok(restored.interact('harbor-gate'));
+  advanceUntil(restored, () => restored.state.zone === 'harbor', 'Should re-enter without another key');
+});
+
+test('The cargo summons Chalawan and boarding requires victory and turn-in', () => {
+  const game = fixture({
+    zone: 'harbor', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
+    player: { ...trainedPlayer, x: 995, y: -126, stats: { ...trainedPlayer.stats, STR: 290, VIT: 120 } },
+  });
+  const notices = [];
+  const dialogs = [];
+  game.subscribe(event => {
+    if (event.type === 'notice') notices.push(event.text);
+    if (event.type === 'dialog') dialogs.push(event);
+  });
+  assert.equal(game.state.trackedQuest, game.state.harborQuest);
+  assert.equal(game.interact('harbor-boarding'), false);
+  assert.match(notices.at(-1), /เรือเที่ยวสุดท้าย/);
+  assert.equal(game.acceptQuest(), false);
+  assert.equal(game.state.interactables.some(entity => entity.id === 'harbor-crate'), false);
+
+  talk(game, 'harbor-master');
+  assert.equal(dialogs.at(-1).questView, 'offer');
+  assert.ok(game.acceptQuest());
+  assert.equal(game.acceptQuest(), false);
+  assert.equal(game.state.harborQuest.status, 'active');
+  assert.ok(game.interact('harbor-crate'));
+  advanceUntil(game, () => game.state.harborQuest.status === 'fight', 'Collecting the cargo should start the fight');
+  assert.equal(game.state.harborQuest.count, 1);
+  assert.equal(game.state.interactables.some(entity => entity.id === 'harbor-crate'), false);
+  const [leapingBoss] = game.state.enemies;
+  assert.equal(leapingBoss.type, 'chalawan');
+  assert.deepEqual([leapingBoss.x, leapingBoss.y], [850, 415]);
+  assert.ok(leapingBoss.entrance.waterY < game.state.zoneInfo.bounds.top);
+  assert.equal(game.selectTarget(leapingBoss.id), false, 'The boss becomes a target after landing');
+  assert.equal(game.attack(), false);
+  talk(game, 'harbor-master');
+  assert.equal(dialogs.at(-1).questView, 'progress');
+  assert.equal(game.state.harborQuest.status, 'fight');
+
+  const restored = create({ storage: memoryStorage(game.exportSave()) });
+  assert.equal(restored.state.harborQuest.status, 'fight');
+  assert.equal(restored.state.enemies.length, 1);
+  const [boss] = restored.state.enemies;
+  advanceUntil(restored, () => !boss.entrance, 'The boss should land after resuming the encounter');
+  defeat(restored, 'chalawan');
+  assert.equal(restored.state.harborQuest.status, 'ready');
+  assert.equal(restored.state.harborQuest.bossDefeated, true);
+  assert.equal(restored.state.harborQuest.loot, 'earned');
+  assert.equal(restored.state.player.inventory.river_lord_armor, 1);
+  assert.equal(restored.state.player.inventory.chalawan_card, 1);
+  assert.equal(boss.action, 'death');
+  assert.equal(boss.actionDuration, sandbox.window.AyothayaGame.chalawan.collapseDuration);
+  tick(restored, 18);
+  assert.equal(boss.visible, true, 'Chalawan should remain visible through the collapse');
+  tick(restored, 7);
+  assert.equal(boss.visible, false, 'The collapsed boss should disappear after the animation');
+
+  const afterBattle = create({ storage: memoryStorage(restored.exportSave()) });
+  assert.equal(afterBattle.state.harborQuest.status, 'ready');
+  assert.equal(afterBattle.state.enemies.length, 0);
+  const rewardDialogs = [];
+  afterBattle.subscribe(event => { if (event.type === 'dialog') rewardDialogs.push(event); });
+  talk(afterBattle, 'harbor-master');
+  assert.equal(rewardDialogs.at(-1).questView, 'reward');
+  assert.equal(afterBattle.state.harborQuest.status, 'completed');
+  talk(afterBattle, 'harbor-master');
+  assert.equal(rewardDialogs.at(-1).questView, undefined);
+
+  const loaded = create({ storage: memoryStorage(afterBattle.exportSave()) });
+  assert.equal(loaded.state.harborQuest.status, 'completed');
+  assert.equal(loaded.state.harborQuest.count, 1);
+  let boardingOffer;
+  loaded.subscribe(event => { if (event.type === 'ferry') boardingOffer = event; });
+  assert.ok(loaded.interact('harbor-boarding'));
+  advanceUntil(loaded, () => Boolean(boardingOffer), 'Should reach the open boarding point');
+  assert.equal(boardingOffer.destination, 'ป่าจากน้ำกร่อย');
+  assert.equal(boardingOffer.fare, 0);
+});
+
+test('The first outbound ferry is free, later fares charge once, and returns are free', () => {
+  const legacy = JSON.parse(fixture({
+    zone: 'harbor', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
+    harborQuest: { status: 'completed', count: 1, bossDefeated: true, loot: 'earned' },
+    player: { x: 995, y: -126, gold: 30, inventory: { town_scroll: 1 } },
+  }).exportSave());
+  delete legacy.harborQuest.ferryUsed;
+  const game = create({ storage: memoryStorage(JSON.stringify(legacy)) });
+  let offer;
+  game.subscribe(event => { if (event.type === 'ferry') offer = event; });
+  assert.equal(game.boardFerry('harbor-boarding'), false);
+  talk(game, 'harbor-boarding');
+  assert.equal(offer.firstTrip, true);
+  assert.equal(offer.fare, 0);
+  assert.equal(game.state.zone, 'harbor');
+  assert.ok(game.boardFerry('harbor-boarding'));
+  assert.equal(game.state.zone, 'nipa');
+  assert.equal(game.state.player.gold, 30);
+  assert.equal(game.state.harborQuest.ferryUsed, true);
+
+  const restored = create({ storage: memoryStorage(game.exportSave()) });
+  assert.equal(restored.state.zone, 'nipa');
+  assert.deepEqual([restored.state.player.x, restored.state.player.y], [...restored.state.zoneInfo.spawn]);
+  restored.subscribe(event => { if (event.type === 'ferry') offer = event; });
+  talk(restored, 'nipa-boarding');
+  assert.equal(offer.fare, 0);
+  assert.ok(restored.boardFerry('nipa-boarding'));
+  assert.equal(restored.state.zone, 'harbor');
+  assert.equal(restored.state.player.gold, 30);
+
+  talk(restored, 'harbor-boarding');
+  assert.equal(offer.firstTrip, false);
+  assert.equal(offer.fare, 20);
+  assert.equal(restored.state.player.gold, 30, 'Opening the ferry dialog does not charge');
+  assert.ok(restored.boardFerry('harbor-boarding'));
+  assert.equal(restored.state.player.gold, 10);
+  assert.equal(restored.boardFerry('harbor-boarding'), false, 'The same ferry confirmation cannot charge twice');
+  talk(restored, 'nipa-boarding');
+  assert.ok(restored.boardFerry('nipa-boarding'));
+  talk(restored, 'harbor-boarding');
+  assert.equal(restored.boardFerry('harbor-boarding'), false);
+  assert.equal(restored.state.zone, 'harbor');
+  assert.equal(restored.state.player.gold, 10);
+});
+
+test('Travelers can take the return ferry with zero gold or use a town scroll', () => {
+  const saved = fixture({
+    zone: 'nipa', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
+    harborQuest: { status: 'completed', count: 1, ferryUsed: true },
+    player: { gold: 0, inventory: { town_scroll: 1 } },
+  }).exportSave();
+  const game = create({ storage: memoryStorage(saved) });
+  assert.ok(game.useItem('town_scroll'));
+  assert.equal(game.state.zone, 'village');
+  const returning = create({ storage: memoryStorage(saved) });
+  talk(returning, 'nipa-boarding');
+  assert.ok(returning.boardFerry('nipa-boarding'));
+  assert.equal(returning.state.zone, 'harbor');
+  assert.equal(returning.state.player.gold, 0);
+});
+
+test('Harbor quest imports restore pickup and fight and preserve boarding for existing completions', () => {
+  const changes = {
+    zone: 'harbor', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
+    player: { x: 1090, y: 255 },
+  };
+  const olderSave = JSON.parse(fixture(changes).exportSave());
+  delete olderSave.harborQuest;
+  const game = create({ storage: memoryStorage(JSON.stringify(olderSave)) });
+  assert.equal(game.state.harborQuest.status, 'available');
+  assert.equal(game.state.interactables.some(entity => entity.id === 'harbor-crate'), false);
+  olderSave.harborQuest = { status: 'active', count: 0 };
+  assert.ok(game.importSave(JSON.stringify(olderSave)));
+  assert.ok(game.interact(), 'The interaction key should collect the nearby crate');
+  assert.equal(game.state.harborQuest.status, 'fight');
+  olderSave.harborQuest = { status: 'ready', count: 1 };
+  assert.ok(game.importSave(JSON.stringify(olderSave)));
+  assert.equal(game.state.harborQuest.status, 'fight', 'An old unsubmitted crate should resume at the fight');
+  assert.equal(game.state.enemies.length, 1);
+  olderSave.harborQuest.status = 'completed';
+  assert.ok(game.importSave(JSON.stringify(olderSave)));
+  assert.equal(game.state.harborQuest.status, 'completed');
+  assert.equal(game.state.enemies.length, 0);
+});
+
+test('Chalawan signals its sweep before hitting and the player can dodge outside the radius', () => {
+  const encounter = () => fixture({
+    zone: 'harbor', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
+    harborQuest: { status: 'fight', count: 1 }, player: { ...trainedPlayer, x: 940, y: 415 },
+  });
+  for (const dodge of [false, true]) {
+    const game = encounter();
+    const [boss] = game.state.enemies;
+    let impact = false;
+    const hits = [];
+    game.subscribe(event => {
+      if (event.type === 'boss-slam') impact = true;
+      if (event.type === 'damage' && !event.enemy) hits.push(event.value);
+    });
+    advanceUntil(game, () => boss.action === 'attack' && boss.attackStyle === 'tail-sweep', 'Tail sweep should wind up');
+    assert.equal(hits.length, 0);
+    if (dodge) tick(game, 21, { x: 1, y: 0 });
+    advanceUntil(game, () => impact, 'The telegraphed sweep should resolve');
+    assert.equal(hits.length, dodge ? 0 : 1);
+    assert.equal(game.state.player.bleed, null, 'The tail sweep does not apply bleed');
+  }
+});
+
+test('Chalawan applies bleed on each normal bite, refreshing three one-second ticks', () => {
+  const game = fixture({
+    zone: 'harbor', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
+    harborQuest: { status: 'fight', count: 1 }, player: { ...trainedPlayer, hp: 400, x: 900, y: 415 },
+  });
+  const { player, enemies: [boss] } = game.state;
+  boss.slamCooldown = boss.slam.cooldown;
+  const bites = [];
+  const ticks = [];
+  game.subscribe(event => {
+    if (event.type !== 'damage' || event.enemy) return;
+    (event.status === 'bleed' ? ticks : bites).push(event.value);
+  });
+  advanceUntil(game, () => bites.length === 1, 'The first bite should hit');
+  assert.equal(player.bleed.ticksLeft, 3);
+  assert.equal(player.bleed.damage, Math.round(bites[0] * .15));
+  tick(game, 19);
+  assert.equal(ticks.length, 0);
+
+  advanceUntil(game, () => bites.length === 2, 'The second bite should refresh bleed');
+  assert.equal(ticks.length, 1);
+  assert.equal(player.bleed.ticksLeft, 3);
+  player.x = 1250;
+  tick(game, 19);
+  assert.equal(ticks.length, 1);
+  advanceUntil(game, () => ticks.length === 4, 'Three refreshed bleed ticks should finish after dodging away');
+  assert.deepEqual(ticks, Array(4).fill(Math.round(bites[1] * .15)));
+  assert.equal(player.bleed, null);
+  tick(game, 25);
+  assert.equal(ticks.length, 4);
+});
+
+test('Lethal bleed revives the player in town and clears the status', () => {
+  const game = fixture({
+    zone: 'harbor', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
+    harborQuest: { status: 'fight', count: 1 }, player: { ...trainedPlayer, x: 900, y: 415 },
+  });
+  const { player, enemies: [boss] } = game.state;
+  boss.slamCooldown = boss.slam.cooldown;
+  advanceUntil(game, () => Boolean(player.bleed), 'A normal bite should apply bleed');
+  player.x = 1250;
+  player.hp = 1;
+  advanceUntil(game, () => game.state.dead, 'A bleed tick should defeat the player');
+  assert.equal(player.hp, 0);
+  assert.equal(player.bleed, null);
+  tick(game, 65);
+  assert.equal(game.state.dead, false);
+  assert.equal(game.state.zone, 'village');
+  assert.equal(player.hp, player.maxHp);
+});
+
+test('A completed harbor save can challenge Chalawan once to earn the new drops', () => {
+  const game = fixture({
+    zone: 'harbor', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
+    harborQuest: { status: 'completed', count: 1, bossDefeated: true },
+    player: { ...trainedPlayer, x: 735, y: -82, stats: { ...trainedPlayer.stats, STR: 290, VIT: 120 } },
+  });
+  assert.equal(game.startHarborChallenge(), false, 'The challenge starts through the harbor master');
+  talk(game, 'harbor-master');
+  assert.ok(game.startHarborChallenge());
+  assert.equal(game.startHarborChallenge(), false);
+  assert.equal(game.state.harborQuest.status, 'completed');
+
+  const restored = create({ storage: memoryStorage(game.exportSave()) });
+  const [boss] = restored.state.enemies;
+  advanceUntil(restored, () => !boss.entrance, 'The challenge should resume after loading');
+  defeat(restored, 'chalawan');
+  assert.equal(restored.state.harborQuest.status, 'completed');
+  assert.equal(restored.state.harborQuest.loot, 'earned');
+  assert.equal(restored.state.player.inventory.river_lord_armor, 1);
+  assert.equal(restored.state.player.inventory.chalawan_card, 1);
+  const finished = create({ storage: memoryStorage(restored.exportSave()) });
+  assert.equal(finished.state.enemies.length, 0);
+  talk(finished, 'harbor-master');
+  assert.equal(finished.startHarborChallenge(), false);
 });
 
 function pretEncounter(gap) {
@@ -407,6 +745,7 @@ test('Pret slam warns before hitting in all directions and stuns exactly 0.08 se
   game.selectTarget(null);
   player.x = boss.x + 160;
   advanceUntil(game, () => hits.length === 1, 'Slam should hit at the edge behind the boss', 25);
+  assert.equal(hits[0].value, 96);
   assert.equal(hits[0].stunTime, .08);
   assert.equal(player.stunTime, .08);
   assert.equal(game.attack(), false);
@@ -457,6 +796,7 @@ test('Pret basic hit rolls a 0.2% chance and blocks only 0.01 seconds of movemen
       let hit;
       game.subscribe(event => { if (event.type === 'damage' && !event.enemy) hit = event; });
       advanceUntil(game, () => Boolean(hit), 'Pret should hit with a basic attack');
+      assert.equal(hit.value, 96);
       assert.equal(hit.stunTime, stunTime);
       assert.equal(player.stunTime, stunTime);
       const x = player.x;
@@ -490,6 +830,41 @@ test('TC-ITEM-01 | Merchant restricts purchases, sells the scroll for 20 and buy
   const broke = fixture({ player: { x: 886, y: 110, gold: 19 } });
   assert.equal(broke.buyItem('town_scroll'), false);
   assert.equal(broke.state.player.gold, 19);
+});
+
+test('Merchant counts completed trades and sells an item stack at its per-item price', () => {
+  const legacy = {
+    ...initialSave,
+    player: { ...initialSave.player, x: 886, y: 110, level: 10, gold: 40,
+      inventory: { potion: 3, elixir: 2, bronze_sword: 2 }, equipment: { weapon: 'bronze_sword' } },
+  };
+  delete legacy.player.tradeCounts;
+  const game = create({ storage: memoryStorage(JSON.stringify(legacy)) });
+  const { inventory, tradeCounts } = game.state.player;
+  assert.equal(tradeCounts.bought.potion, undefined);
+  assert.equal(tradeCounts.sold.potion, undefined);
+  assert.ok(game.buyItem('potion'));
+  assert.equal(tradeCounts.bought.potion, 1);
+  assert.equal(game.sellableItemCount('potion'), 4);
+  assert.equal(game.sellableItemCount('bronze_sword'), 0);
+  assert.equal(game.sellItem('bronze_sword', 2), false);
+  for (const count of [0, -1, 1.5, 5]) assert.equal(game.sellItem('potion', count), false);
+  assert.equal(tradeCounts.sold.potion, undefined);
+  assert.ok(game.sellItem('potion'));
+  assert.equal(tradeCounts.sold.potion, 1);
+  assert.ok(game.sellItem('potion', game.sellableItemCount('potion')));
+  assert.equal(tradeCounts.sold.potion, 4);
+  assert.equal(inventory.potion, undefined);
+  assert.equal(inventory.elixir, 2);
+  assert.equal(inventory.bronze_sword, 2);
+  assert.equal(game.state.player.gold, 36);
+
+  const restored = create({ storage: memoryStorage(game.exportSave()) });
+  assert.equal(restored.state.player.tradeCounts.bought.potion, 1);
+  assert.equal(restored.state.player.tradeCounts.sold.potion, 4);
+  assert.ok(restored.resetCharacter());
+  assert.equal(restored.state.player.tradeCounts.bought.potion, undefined);
+  assert.equal(restored.state.player.tradeCounts.sold.potion, undefined);
 });
 
 test('TC-ITEM-02 | Equip items and cards, swap shortcuts and keep bindings through saves', () => {
@@ -532,6 +907,71 @@ test('TC-ITEM-03 | Return scroll uses one item, turns Auto off and preserves que
   assert.equal(state.ruinsQuest.counts.ghost, 2);
   assert.ok(game.useItem('town_scroll'));
   assert.equal(game.useItem('town_scroll'), false);
+});
+
+test('Card slots unlock cumulatively by class and apply each equipped copy', () => {
+  for (const [classTier, capacity] of [[1, 2], [2, 3], [3, 4]]) {
+    const game = fixture({ player: { classTier, inventory: { monkey_card: 4 } } });
+    const { player } = game.state;
+    const { attack, maxHp } = player;
+    for (const [index, slot] of game.cardSlots.entries()) {
+      assert.equal(game.equipItem('monkey_card', slot.id), index < capacity);
+    }
+    assert.equal(game.equipItem('monkey_card', 'weapon'), false);
+    assert.equal(game.equippedItemCount('monkey_card'), capacity);
+    assert.equal(player.attack, attack + 3 * capacity);
+    assert.equal(player.maxHp, maxHp + 12 * capacity);
+    assert.equal(game.discardableItemCount('monkey_card'), 4 - capacity);
+    const restored = create({ storage: memoryStorage(game.exportSave()) });
+    assert.equal(restored.state.player.classTier, classTier);
+    assert.equal(restored.equippedItemCount('monkey_card'), capacity);
+    assert.ok(restored.unequipCard('card2'));
+    assert.equal(restored.state.player.inventory.monkey_card, 4);
+    assert.equal(restored.state.player.maxHp, maxHp + 12 * (capacity - 1));
+    assert.equal(restored.state.player.attack, attack + 3 * (capacity - 1));
+  }
+});
+
+test('Old saves keep their first card and extra slots cannot exceed owned copies', () => {
+  const saved = {
+    ...initialSave,
+    player: { ...initialSave.player, inventory: { monkey_card: 1, pret_card: 1 },
+      equipment: { card: 'monkey_card', card2: 'monkey_card', card3: 'pret_card' } },
+  };
+  delete saved.player.classTier;
+  const game = create({ storage: memoryStorage(JSON.stringify(saved)) });
+  assert.equal(game.state.player.classTier, 1);
+  assert.equal(game.state.player.equipment.card, 'monkey_card');
+  assert.equal(game.state.player.equipment.card2, undefined);
+  assert.equal(game.state.player.equipment.card3, undefined);
+  assert.equal(game.equipItem('monkey_card', 'card2'), false);
+  assert.ok(game.equipItem('pret_card', 'card2'));
+  assert.equal(game.discardItem('pret_card', 1), false);
+  assert.ok(game.unequipCard('card2'));
+  assert.ok(game.discardItem('pret_card', 1));
+});
+
+test('River Lord armor adds 50 max HP and blocks 5 damage until removed', () => {
+  const game = monsterEncounter('guardian', 30, { player: { inventory: { river_lord_armor: 1 } } });
+  const { player } = game.state;
+  const before = game.combatStats();
+  assert.ok(game.equipItem('river_lord_armor'));
+  assert.equal(player.equipment.armor, 'river_lord_armor');
+  assert.equal(game.combatStats().maxHp, before.maxHp + 50);
+  assert.equal(game.combatStats().defense, before.defense + 5);
+
+  const loaded = create({ storage: memoryStorage(game.exportSave()) });
+  assert.equal(loaded.state.player.equipment.armor, 'river_lord_armor');
+  assert.equal(loaded.combatStats().defense, before.defense + 5);
+
+  const hits = [];
+  game.subscribe(event => { if (event.type === 'damage' && !event.enemy) hits.push(event.value); });
+  advanceUntil(game, () => hits.length === 1, 'The guardian should hit the armored player');
+  assert.ok(game.unequipArmor());
+  assert.equal(player.equipment.armor, undefined);
+  assert.equal(game.combatStats().maxHp, before.maxHp);
+  advanceUntil(game, () => hits.length === 2, 'The guardian should hit again after removing armor');
+  assert.deepEqual(hits, [12, 17]);
 });
 
 test('Bronze sword requires Base Lv. 10, including equipment saved before the requirement', () => {
@@ -671,6 +1111,30 @@ test('Active skills and the bleed passive unlock exactly at their required Base 
   }
 });
 
+test('A bound skill reports its missing requirements or activation step', () => {
+  const locked = fixture({ player: { level: 4, jobLevel: 1 }, skillSlots: ['heavy', 'sweep'] });
+  const notices = [];
+  const recordNotice = ({ type, text }) => { if (type === 'notice') notices.push(text); };
+  locked.subscribe(recordNotice);
+  assert.equal(locked.useSkill(1), false);
+  assert.equal(locked.useSkill(2), false);
+  assert.deepEqual(notices, [
+    'ฟันหนัก ต้องการ Base Lv. 10',
+    'กวาดดาบ ต้องการ Base Lv. 15 · Job Lv. 2 · STR 5',
+  ]);
+
+  const ready = arena([['guardian', 825, 610]], { level: 10 }, { skillSlots: ['heavy'] });
+  ready.subscribe(recordNotice);
+  assert.equal(ready.useSkill(1), false);
+  assert.equal(notices.at(-1), 'กด K แล้วเปิดใช้งาน ฟันหนัก');
+  assert.ok(ready.enableSkill('heavy'));
+  const [enemy] = ready.state.enemies;
+  assert.ok(ready.selectTarget(enemy.id));
+  assert.ok(ready.useSkill(1));
+  tick(ready, 9);
+  assert.ok(enemy.hp < enemy.maxHp);
+});
+
 test('Bleed passive rolls a 20% chance on a direct hit and produces three damage ticks', () => {
   const random = sandbox.Math.random;
   try {
@@ -796,6 +1260,49 @@ test('Thrust applies three bleed ticks and a second thrust refreshes the timer',
   tick(game, 21);
   assert.deepEqual(ticks.slice(1), Array(3).fill(Math.round(strikes[1] * .15)));
   assert.equal(target.maxHp - target.hp, [...strikes, ...ticks].reduce((total, value) => total + value, 0));
+});
+
+test('Chalawan cards add ATK and apply one 15% bonus to hits and ticks on bleeding enemies', () => {
+  const fight = {
+    enabledSkills: ['thrust'], skillSlots: ['thrust'],
+    player: { ...trainedPlayer, inventory: { chalawan_card: 2 } },
+  };
+  const encounters = [
+    arena([['guardian', 825, 610]], fight.player, { enabledSkills: fight.enabledSkills, skillSlots: fight.skillSlots }),
+    fixture({ ...fight, zone: 'harbor', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
+      harborQuest: { status: 'fight', count: 1 }, player: { ...fight.player, x: 900, y: 415 } }),
+  ];
+  for (const game of encounters) {
+    const { player, enemies: [target] } = game.state;
+    target.hp = target.maxHp = 1000;
+    const originalAttack = player.attack;
+    assert.ok(game.equipItem('chalawan_card'));
+    assert.equal(player.attack, originalAttack + 5);
+    assert.ok(game.equipItem('chalawan_card', 'card2'));
+    assert.equal(player.attack, originalAttack + 10);
+    advanceUntil(game, () => !target.entrance, 'Enemy should be targetable');
+    const damage = [];
+    const ticks = [];
+    game.subscribe(event => {
+      if (event.type !== 'damage' || !event.enemy) return;
+      (event.status === 'bleed' ? ticks : damage).push(event.value);
+    });
+    const power = player.attack * (.92 + .65 * .16) + player.stats.DEX - 1;
+    assert.ok(game.selectTarget(target.id));
+    assert.ok(game.useSkill(1));
+    advanceUntil(game, () => damage.length === 1, 'Thrust should start bleeding');
+    assert.equal(damage[0], Math.round(power * 1.45), 'The opening hit has no bleeding bonus');
+    assert.ok(game.attack());
+    advanceUntil(game, () => damage.length === 2, 'The follow-up attacks a bleeding enemy');
+    assert.equal(damage[1], Math.round(power * 1.15));
+    game.selectTarget(null);
+    advanceUntil(game, () => ticks.length === 1, 'Bleed should tick with the equipped card');
+    assert.equal(ticks[0], Math.round(Math.round(damage[0] * .15) * 1.15));
+    assert.ok(game.unequipCard('card'));
+    assert.ok(game.unequipCard('card2'));
+    advanceUntil(game, () => ticks.length === 2, 'The existing bleed continues when the card is removed');
+    assert.equal(ticks[1], Math.round(damage[0] * .15));
+  }
 });
 
 test('A lethal bleed counts toward quests and awards loot once', () => {

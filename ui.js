@@ -9,8 +9,18 @@
   const bagDiscardButton = bagContext.querySelector("button");
   const autoToggle = $("auto-toggle");
   const questTracker = $("quest-tracker");
+  const scoutingPanels = {
+    minimap: { button: $("minimap-toggle"), content: $("minimap-panel") },
+    questTracker: { button: $("quest-tracker-toggle"), content: questTracker },
+  };
   const itemShortcuts = [...document.querySelectorAll('[data-action="item-shortcut"]')];
   const itemSlotNames = ["ช่องบน", "ช่องล่าง"];
+  const itemImages = {
+    town_scroll: "town-scroll",
+    river_lord_armor: "river-lord-armor",
+    chalawan_card: "chalawan-card",
+    pret_ash: "pret-ash",
+  };
   const game = window.AyothayaGame.create();
   const { state } = game;
   const world = window.AyothayaWorld.create(canvas);
@@ -21,7 +31,7 @@
     ["standard", { label: "มาตรฐาน", scale: 1 }],
     ["sharp", { label: "คมชัด", scale: 1.25 }],
   ]);
-  const displaySettings = { quality: "standard", brightness: 100 };
+  const displaySettings = { quality: "standard", brightness: 100, minimap: true, questTracker: true };
   const brightnessRange = { min: 70, max: 130 };
   try {
     const saved = JSON.parse(localStorage.getItem(displayKey));
@@ -29,12 +39,17 @@
     if (Number.isFinite(saved?.brightness)) {
       displaySettings.brightness = Math.max(brightnessRange.min, Math.min(brightnessRange.max, saved.brightness));
     }
+    for (const id of Object.keys(scoutingPanels)) {
+      if (typeof saved?.[id] === "boolean") displaySettings[id] = saved[id];
+    }
   } catch {}
   applyDisplaySettings();
+  Object.keys(scoutingPanels).forEach(renderScoutingPanel);
   const keys = new Set();
   const skillButtons = [...document.querySelectorAll("[data-skill]")];
   const hits = [];
   let panel = null;
+  let ferryOffer = null;
   let dialogue = null;
   let toastTimeout;
   let peerCount = 0;
@@ -44,9 +59,13 @@
   let lastRender = 0;
   let skillTab = "active";
   let selectedSlot = 1;
+  let activeDrag = null;
+  let suppressDragClick = false;
   let selectedItem = null;
   let sortInventory = false;
   let cardsOnly = false;
+  let equipmentTab = "gear";
+  let selectedCardSlot = "card";
   let pendingStats = {};
 
   const text = (id, value) => {
@@ -71,12 +90,13 @@
     INT: "พลังวิชา", DEX: "ความแม่นยำ", LUK: "โชค",
   };
   const itemIcons = { potion: "leaf", elixir: "flame", sword: "blade", seed: "leaf",
-    claw: "swords", dust: "star", card: "quest", seal: "shield", scroll: "quest" };
+    claw: "swords", dust: "star", card: "quest", seal: "shield", scroll: "quest", key: "key" };
   const inventoryArt = [
     "potion", "elixir", "rusty_sword", "bronze_sword", "tamarind_core",
     "monkey_claw", "spirit_dust", "tamarind_card", "monkey_card", "guardian_seal",
   ];
-  const skillIcon = (name) => '<svg class="icon" aria-hidden="true"><use href="#i-' + name + '"></use></svg>';
+  const interfaceIcon = (name) => '<svg class="icon" aria-hidden="true"><use href="#i-' + name + '"></use></svg>';
+  const skillArtwork = (id) => '<svg class="skill-art" aria-hidden="true"><use href="#i-skill-' + id + '"></use></svg>';
 
   function renderHUD() {
     const { player, trackedQuest: quest, zoneInfo } = state;
@@ -84,7 +104,7 @@
     const cooldowns = game.skillCooldownsEnabled();
     const manaCosts = game.skillManaCostsEnabled();
     setHidden("training-controls", !training);
-    setHidden("quest-tracker", training);
+    setHidden("quest-widget", training || zoneInfo.id === "nipa");
     if (training) {
       for (const [id, enabled] of [["training-cooldown", cooldowns], ["training-mana", manaCosts]]) {
         const button = $(id);
@@ -99,15 +119,17 @@
     text("gold", fmt(player.gold));
     renderItemShortcuts(player);
     text("quest-title", quest.title);
+    const questStatus = quest.loot === "challenge" ? "fight" : quest.status;
     const multiGoalProgress = quest.goals && quest.status === "active";
     text("quest-objective", multiGoalProgress ? game.questProgress(quest) : quest.objective);
     const questAction = questActionLabels[quest.status];
     const questOwner = quest.npcId ?? "";
     const respawnSeconds = quest.respawnAt ? Math.max(0, Math.ceil((quest.respawnAt - Date.now()) / 1000)) : null;
     text("quest-count", respawnSeconds !== null ? respawnSeconds + " วิ." :
-      questAction ?? (quest.status === "completed" ? "ส่งแล้ว" : multiGoalProgress ? "" : game.questProgress(quest)));
-    if (questTracker.dataset.status !== quest.status || questTracker.dataset.owner !== questOwner) {
-      questTracker.dataset.status = quest.status;
+      questAction ?? (questStatus === "completed" ? "ส่งแล้ว" : questStatus === "fight" ? "บอส" :
+        multiGoalProgress ? "" : game.questProgress(quest)));
+    if (questTracker.dataset.status !== questStatus || questTracker.dataset.owner !== questOwner) {
+      questTracker.dataset.status = questStatus;
       questTracker.dataset.owner = questOwner;
       questTracker.dataset.action = questAction ? "quest-owner" : "quests";
       const owner = state.npcs.find(npc => npc.id === quest.npcId);
@@ -117,14 +139,15 @@
     }
     text("player-name", player.name || "นักเดินทาง");
     text("player-job", player.job || "ดาบอโยธยา");
+    setHidden("player-bleed", !player.bleed);
     text("base-level", fmt(player.level));
     text("job-level", fmt(player.jobLevel));
     text("hp-text", fmt(player.hp) + " / " + fmt(player.maxHp));
     text("sp-text", fmt(player.mp) + " / " + fmt(player.maxMp));
-    text("xp-text", fmt(player.xp) + " / " + fmt(player.nextXp));
+    text("xp-text", player.nextXp === 0 ? "MAX" : fmt(player.xp) + " / " + fmt(player.nextXp));
     fill("hp-fill", player.hp, player.maxHp);
     fill("sp-fill", player.mp, player.maxMp);
-    fill("xp-fill", player.xp, player.nextXp);
+    fill("xp-fill", player.nextXp === 0 ? 1 : player.xp, player.nextXp || 1);
     text($("network-label") ? "network-label" : "network", connected ? "LAN · " + (peerCount + 1) + " คน" : "เล่นคนเดียว");
     $("network")?.classList.toggle("connected", connected);
     const autoActive = String(state.auto.enabled);
@@ -153,17 +176,23 @@
       const remaining = cooldowns ? (skill?.remaining ?? 0) : 0;
       const name = skill?.name ?? "ว่าง";
       const inactive = Boolean(skill && !game.isSkillEnabled(skill));
-      const binding = skill ? skill.id + (inactive ? ":inactive" : "") : "";
+      const locked = inactive && !game.isSkillUnlocked(skill);
+      const status = locked ? "ยังไม่ปลดล็อก" : inactive ? "รอเปิดใช้งาน" : "";
+      const binding = skill ? skill.id + ":" + status : "";
       if (button.dataset.binding !== binding) {
         button.dataset.binding = binding;
         button.className = "skill panel style-" + (skill?.icon ?? "empty");
-        const skillLabel = name + (inactive ? " · รอเปิดใช้งาน" : "");
+        const skillLabel = status ? name + " · " + status : name;
+        const requirements = locked ? "\nต้องการ " + game.skillRequirements(skill)
+          .map(({ label, minimum }) => label + " " + minimum).join(" · ") : "";
         button.title = skill
-          ? [skillLabel, skill.cost + " มานา", skillRangeText(skill)].filter(Boolean).join(" · ") + "\n" + skill.description
+          ? [skillLabel, skill.cost + " มานา", skillRangeText(skill)].filter(Boolean).join(" · ") + "\n" + skill.description + requirements
           : "ช่องว่าง · คลิกเพื่อจัดสกิล";
         button.setAttribute("aria-label", "ช่อง " + slot + " " + (skill ? skillLabel : "ว่าง เปิดหน้าต่างสกิล"));
-        button.querySelector("use").setAttribute("href", "#i-" + (skill?.icon ?? "plus"));
+        button.querySelector("use").setAttribute("href", "#i-skill-" + (skill?.id ?? "empty"));
         button.querySelector(".skill-label").textContent = name;
+        if (skill && !inactive) button.dataset.dragSkill = skill.id;
+        else delete button.dataset.dragSkill;
       }
       button.classList.toggle("skill-inactive", inactive);
       button.classList.toggle("on-cooldown", remaining > 0);
@@ -174,12 +203,15 @@
       shade.hidden = remaining <= 0;
     });
 
-    const nearby = state.npcs.find((npc) => Math.hypot(player.x - npc.x, player.y - npc.y) < 120);
+    const nearby = [...state.npcs, ...state.interactables]
+      .find(entity => Math.hypot(player.x - entity.x, player.y - entity.y) < 120);
     const showHint = nearby && !dialog.open;
     setHidden("interaction-hint", !showHint);
     if (showHint) {
       const label = $("interaction-name") || $("interaction-hint");
-      if (label) label.textContent = nearby.name + " · F คุย";
+      const action = nearby.type === "harbor-crate" ? "เก็บ" :
+        nearby.type === "ferry" ? (state.harborQuest.status === "completed" ? "ขึ้นเรือ" : "ตรวจ") : "คุย";
+      if (label) label.textContent = nearby.name + " · F " + action;
     }
   }
 
@@ -192,9 +224,11 @@
   }
 
   function itemArtwork(id) {
-    if (id === "town_scroll") return '<img class="town-scroll-art" src="assets/town-scroll.png" alt="" draggable="false">';
+    if (Object.hasOwn(itemImages, id)) {
+      return '<img class="item-image-art" src="assets/' + itemImages[id] + '.png" alt="" draggable="false">';
+    }
     const cell = inventoryArt.indexOf(id);
-    if (cell < 0) return skillIcon(itemIcons[state.items[id]?.icon] ?? "bag");
+    if (cell < 0) return interfaceIcon(itemIcons[state.items[id]?.icon] ?? "bag");
     return '<span class="bag-item-art" aria-hidden="true" style="background-position:' +
       (cell % 5) * 25 + '% ' + Math.floor(cell / 5) * 100 + '%"></span>';
   }
@@ -218,7 +252,7 @@
       if (quantity.textContent !== countText) quantity.textContent = countText;
       quantity.hidden = !item;
       button.classList.toggle("out-of-stock", Boolean(item && !count));
-      button.classList.toggle("equipped", Boolean(item?.slot && player.equipment[item.slot] === id));
+      button.classList.toggle("equipped", Boolean(item?.slot && game.equippedItemCount(id)));
     });
   }
 
@@ -266,15 +300,90 @@
       const requirement = item.baseLevel ? '<small>ต้องการ Base Lv. ' + item.baseLevel + '</small>' : '';
       const locked = item.baseLevel > state.player.level;
       detail = '<div><strong>' + escape(item.name) + '</strong><small>' + escape(item.description) + '</small>' + requirement + '</div>' +
-        (selected.equipped ? '<span class="bag-worn">สวมอยู่</span>' : action ?
+        (item.slot === "card" ? '<button type="button" data-action="manage-card" data-id="' + id + '">จัดการการ์ด</button>' :
+          selected.equipped ? (item.slot === "armor" ? '<button type="button" data-action="unequip-armor">ถอดเกราะ</button>' :
+            '<span class="bag-worn">สวมอยู่</span>') : action ?
           '<button type="button" data-action="' + action + '" data-id="' + id + '"' + (locked ? ' disabled' : '') + '>' +
           (action === "equip" ? "สวม" : "ใช้") + '</button>' : '');
     }
     return '<ul class="bag-grid" aria-label="' + (cardsOnly ? "การ์ด" : "ไอเทมในกระเป๋า") + '">' +
       slots.join("") + emptySlots + '</ul><div class="bag-detail">' + detail + '</div>' + inventoryShortcuts(selected) +
-      '<div class="bag-footer"><button type="button" data-action="inventory-sort" aria-pressed="' + sortInventory +
+      '<div class="bag-footer"><button type="button" data-action="equipment" title="สวมใส่ (E)">สวมใส่</button>' +
+      '<button type="button" data-action="inventory-sort" aria-pressed="' + sortInventory +
       '">จัดเรียง</button><button type="button" data-action="inventory-cards" aria-pressed="' + cardsOnly +
-      '">การ์ด</button><span class="bag-gold">' + skillIcon("coin") + fmt(gold) + ' เบี้ย</span></div>';
+      '">การ์ด</button><span class="bag-gold">' + interfaceIcon("coin") + fmt(gold) + ' เบี้ย</span></div>';
+  }
+
+  function equipmentGear() {
+    const { player, items } = state;
+    const rail = (slots) => '<ul class="equipment-rail">' + slots.map(([label, icon, id, slot]) => {
+      const name = id ? escape(items[id].name) : "ว่าง";
+      return '<li class="equipment-cell' + (id ? ' equipped' : '') + '"' +
+        (slot ? ' data-equipment-slot="' + slot + '" tabindex="-1"' : '') + '><span class="equipment-icon">' +
+        (id ? itemArtwork(id) : interfaceIcon(icon)) + '</span><span><small>' + label +
+        '</small><strong>' + name + '</strong></span></li>';
+    }).join("") + '</ul>';
+    const gear = Object.entries(items).filter(([id, item]) => ["weapon", "armor"].includes(item.slot) && player.inventory[id]);
+    const choices = gear.map(([id, item]) => {
+      const locked = item.baseLevel > player.level;
+      const equipped = id === player.equipment[item.slot];
+      const draggable = locked || equipped ? '' : ' data-drag-equipment="' + id + '"';
+      const action = equipped && item.slot === "armor" ? '<button type="button" data-action="unequip-armor">ถอดเกราะ</button>' :
+        '<button type="button" data-action="equip" data-id="' + id + '"' + (locked || equipped ? ' disabled' : '') + '>' +
+        (equipped ? 'สวมอยู่' : 'สวม') + '</button>';
+      return '<li class="equipment-choice"' + draggable + '><span class="equipment-icon">' + itemArtwork(id) + '</span><div><strong>' +
+        escape(item.name) + '</strong><small>' + escape(item.description) +
+        (locked ? ' · ต้องการ Base Lv. ' + item.baseLevel : '') + '</small></div>' + action + '</li>';
+    }).join("");
+    return '<div class="equipment-layout">' +
+      rail([["ศีรษะ", "helm"], ["อาวุธ", "blade", player.equipment.weapon, "weapon"], ["รองเท้า", "boot"]]) +
+      '<figure class="equipment-figure"><img src="assets/player-anchor.png" alt="นักดาบฝึกหัด" width="41" height="72"></figure>' +
+      rail([["เกราะ", "armor", player.equipment.armor, "armor"], ["มือรอง", "shield"], ["เครื่องประดับ", "coin"]]) + '</div>' +
+      '<div class="equipment-card-heading"><h3>อุปกรณ์ในกระเป๋า</h3><small>ลากไอคอนไปช่องอาวุธหรือเกราะ</small></div>' +
+      '<ul class="equipment-choices">' + choices + '</ul>';
+  }
+
+  function equipmentCards() {
+    const { player, items } = state;
+    const available = game.cardSlots.filter(slot => player.classTier >= slot.classTier);
+    if (!available.some(slot => slot.id === selectedCardSlot)) selectedCardSlot = available[0].id;
+    const picked = player.equipment[selectedCardSlot];
+    const selectedNumber = game.cardSlots.findIndex(slot => slot.id === selectedCardSlot) + 1;
+    const slots = game.cardSlots.map(({ id, classTier }, index) => {
+      const locked = player.classTier < classTier;
+      const item = player.equipment[id];
+      const label = 'ช่อง ' + (index + 1);
+      const stateLabel = locked ? 'ปลดล็อก Class ' + classTier : item ? escape(items[item].name) : 'ว่าง';
+      return '<button type="button" class="equipment-card-slot" data-action="select-card-slot" data-id="' + id +
+        '" data-equipment-slot="' + id + '" aria-pressed="' + (id === selectedCardSlot) + '"' + (locked ? ' disabled' : '') + '><span>' + label +
+        '</span><span class="equipment-icon">' + (item ? itemArtwork(item) : interfaceIcon(locked ? "lock" : "card-slot")) +
+        '</span><strong>' + stateLabel + '</strong></button>';
+    }).join("");
+    const choices = Object.entries(items).filter(([id, item]) => item.slot === "card" && player.inventory[id]).map(([id, item]) => {
+      const free = player.inventory[id] - game.equippedItemCount(id);
+      const name = escape(item.name);
+      const draggable = free > 0 ? ' data-drag-equipment="' + id + '"' : '';
+      return '<li class="equipment-choice"' + draggable + '><span class="equipment-icon">' + itemArtwork(id) + '</span><div><strong>' + name +
+        '</strong><small>' + escape(item.description) + '</small><small>พร้อมใส่ ' + fmt(free) + ' จาก ' +
+        fmt(player.inventory[id]) + ' ใบ</small></div><button type="button" data-action="equip-card" data-id="' + id +
+        '" aria-label="ใส่' + name + ' ในช่อง ' + selectedNumber + '"' + (id === picked || free < 1 ? ' disabled' : '') + '>' +
+        (id === picked ? 'สวมในช่องนี้' : 'ใส่ช่อง ' + selectedNumber) + '</button></li>';
+    }).join("");
+    return '<p class="equipment-card-capacity">Class ' + player.classTier + ' · ใช้ได้ ' + available.length + ' จาก ' + game.cardSlots.length + ' ช่อง</p>' +
+      '<div class="equipment-card-slots" role="group" aria-label="ช่องสวมการ์ด">' + slots + '</div>' +
+      '<div class="equipment-card-heading"><h3>การ์ดในกระเป๋า</h3>' + (choices ? '<small>ลากไอคอนไปช่องการ์ด</small>' : '') +
+      (picked ? '<button type="button" data-action="unequip-card" data-id="' + selectedCardSlot + '">ถอดจากช่อง ' +
+        selectedNumber + '</button>' : '') + '</div>' +
+      (choices ? '<ul class="equipment-choices">' + choices + '</ul>' : '<p class="muted">ยังไม่มีการ์ดในกระเป๋า</p>');
+  }
+
+  function equipmentPanel() {
+    const tabs = [["gear", "อุปกรณ์"], ["cards", "การ์ด"]].map(([id, label]) =>
+      '<button type="button" data-action="equipment-tab" data-id="' + id + '" aria-pressed="' +
+      (equipmentTab === id) + '">' + label + '</button>').join("");
+    return '<div class="equipment-navigation"><div class="equipment-tabs" role="group" aria-label="หมวดสวมใส่">' + tabs +
+      '</div><button type="button" data-action="inventory">กระเป๋า</button></div>' +
+      (equipmentTab === "cards" ? equipmentCards() : equipmentGear());
   }
 
   function discardItemPanel() {
@@ -292,11 +401,11 @@
 
   function questRewards(quest, received) {
     const { item, gold, xp, jobXp, unlock } = quest.rewards;
-    const rewards = unlock ? [[skillIcon("quest"), unlock]] : [
+    const rewards = unlock ? [[interfaceIcon("quest"), unlock]] : [
       [itemArtwork(item), state.items[item].name + " ×1"],
-      [skillIcon("coin"), fmt(gold) + " เบี้ย"],
-      [skillIcon("star"), fmt(xp) + " Base EXP"],
-      [skillIcon("quest"), fmt(jobXp) + " Job EXP"],
+      [interfaceIcon("coin"), fmt(gold) + " เบี้ย"],
+      [interfaceIcon("star"), fmt(xp) + " Base EXP"],
+      [interfaceIcon("quest"), fmt(jobXp) + " Job EXP"],
     ];
     return '<section class="quest-reward-list"><h3>' + (received ? 'รางวัลที่ได้รับ' : 'รางวัลภารกิจ') +
       '</h3><ul>' + rewards.map(([icon, label]) => '<li>' + icon + '<span>' + escape(label) +
@@ -307,10 +416,25 @@
     const { quest, questView, text: line } = dialogue;
     const body = '<p>' + escape(line) + '</p>';
     if (!questView) return body;
+    if (questView === "challenge") return '<h3>ท้าชาละวัน</h3>' + body +
+      '<div class="dialog-actions"><button type="button" data-action="harbor-challenge">ท้าชาละวัน</button></div>';
     return '<h3>' + escape(quest.title) + '</h3>' + body + questRewards(quest, questView === "reward") +
       (questView === "offer" ? '<div class="dialog-actions quest-offer-actions">' +
         '<button type="button" data-action="close">ไม่รับภารกิจ</button>' +
         '<button type="button" data-action="accept-quest">รับภารกิจ</button></div>' : "");
+  }
+
+  function ferryPanel() {
+    const { origin, destination, fare, firstTrip } = ferryOffer;
+    const canPay = state.player.gold >= fare;
+    const fareLabel = firstTrip ? "ฟรีเที่ยวแรก" : fare ? fmt(fare) + " เบี้ย" : "ฟรี";
+    return '<dl class="key-list"><dt>ต้นทาง</dt><dd>' + escape(origin) +
+      '</dd><dt>ปลายทาง</dt><dd>' + escape(destination) +
+      '</dd><dt>ค่าโดยสาร</dt><dd>' + fareLabel +
+      '</dd><dt>เบี้ยที่มี</dt><dd>' + fmt(state.player.gold) + ' เบี้ย</dd></dl>' +
+      (canPay ? '' : '<p class="muted">เบี้ยไม่พอสำหรับค่าเรือ</p>') +
+      '<div class="dialog-actions"><button type="button" data-action="close">ยกเลิก</button>' +
+      '<button type="button" data-action="board-ferry"' + (canPay ? '' : ' disabled') + '>ขึ้นเรือ</button></div>';
   }
 
   function character() {
@@ -335,13 +459,16 @@
       ["Max MP", fmt(maxMp), "มานาสูงสุด"],
     ].map(([label, value, detail]) => '<tr><th scope="row"><strong>' + label + '</strong><small>' + detail +
       '</small></th><td>' + value + '</td></tr>').join("");
-    const exp = (kind, level, value, max) => '<div class="character-exp"><span>' + kind + ' Lv. <strong>' + level +
-      '</strong></span><span>' + fmt(value) + ' / ' + fmt(max) + ' EXP</span><progress aria-label="' + kind +
-      ' EXP" value="' + value + '" max="' + max + '"></progress></div>';
+    const exp = (kind, level, cap, value, next) => {
+      const capped = next === 0;
+      return '<div class="character-exp"><span>' + kind + ' Lv. <strong>' + level + ' / ' + cap +
+        '</strong></span><span>' + (capped ? 'MAX' : fmt(value) + ' / ' + fmt(next) + ' EXP') + '</span><progress aria-label="' +
+        kind + ' EXP" value="' + (capped ? 1 : value) + '" max="' + (next || 1) + '"></progress></div>';
+    };
     return '<div class="character-overview"><div><strong>' + escape(player.name) + '</strong><small>' +
-      escape(player.job) + '</small></div><p>แต้มสถานะ <strong>' + fmt(remaining) + '</strong></p></div>' +
-      '<div class="character-experience">' + exp("Base", player.level, player.xp, player.nextXp) +
-      exp("Job", player.jobLevel, player.jobXp, player.nextJobXp) + '</div>' +
+      escape(player.job) + ' · Class ' + player.classTier + '</small></div><p>แต้มสถานะ <strong>' + fmt(remaining) + '</strong></p></div>' +
+      '<div class="character-experience">' + exp("Base", player.level, player.maxLevel, player.xp, player.nextXp) +
+      exp("Job", player.jobLevel, player.maxJobLevel, player.jobXp, player.nextJobXp) + '</div>' +
       '<div class="character-tables"><section class="character-board"><h3 id="character-training">ค่าสเตตัส</h3>' +
       '<table aria-labelledby="character-training"><tbody>' + trainingRows + '</tbody></table></section>' +
       '<section class="character-board"><h3 id="character-combat">ค่าต่อสู้</h3>' +
@@ -353,18 +480,27 @@
 
   function merchant() {
     const { items, player } = state;
-    const stock = Object.entries(items).filter(([, item]) => Number.isFinite(item.price));
-    const sellable = Object.entries(items).filter(([id, item]) =>
-      player.inventory[id] > 0 && item.sell > 0 && player.equipment[item.slot] !== id);
-    const rows = (entries, action) => entries.map(([id, item]) => {
+    const entries = Object.entries(items);
+    const stock = entries.filter(([, item]) => item.price > 0);
+    const sellable = entries.map(([id, item]) => [id, item, game.sellableItemCount(id)])
+      .filter(([id, , available]) => available > 0 || player.tradeCounts.sold[id] > 0);
+    const rows = (entries, action) => entries.map(([id, item, available]) => {
       const buying = action === "buy";
       const price = buying ? item.price : item.sell;
       const label = buying ? "ซื้อ" : "ขาย";
-      const disabled = buying && player.gold < price ? " disabled" : "";
-      return '<li class="item-row"><span class="vendor-item-art" aria-hidden="true">' + itemArtwork(id) +
-        '</span><div><strong>' + escape(item.name) + (buying ? "" : " ×" + player.inventory[id]) +
-        "</strong><small>" + escape(item.description) + "</small></div><span>" + price +
-        ' เบี้ย</span><button data-action="' + action + '" data-id="' + id + '"' + disabled + '>' + label + '</button></li>';
+      const counter = (buying ? player.tradeCounts.bought : player.tradeCounts.sold)[id] ?? 0;
+      const disabled = (buying ? player.gold < price : available === 0) ? " disabled" : "";
+      const name = escape(item.name);
+      const sellAll = buying ? "" : '<button type="button" data-action="sell-all" data-id="' + id +
+        '" aria-label="ขายทั้งหมด ' + name + ' ' + fmt(available) + ' ชิ้น"' +
+        (available ? ' title="รับ ' + fmt(price * available) + ' เบี้ย"' : '') + disabled + '>ขายทั้งหมด</button>';
+      return '<li class="item-row vendor-row" data-vendor-row="' + id + '" data-vendor-kind="' + action +
+        '" tabindex="-1"><span class="vendor-item-art" aria-hidden="true">' + itemArtwork(id) +
+        '</span><div class="vendor-item-info"><strong>' + name + (buying ? "" : " ×" + fmt(available)) +
+        '</strong><small>' + escape(item.description) + '</small><small class="vendor-count">' + label +
+        'แล้ว <strong>' + fmt(counter) + '</strong> ชิ้น</small></div><div class="vendor-actions"><span>' + fmt(price) +
+        ' เบี้ย</span><div class="vendor-buttons"><button type="button" data-action="' + action + '" data-id="' + id +
+        '" aria-label="' + label + ' ' + name + ' 1 ชิ้น"' + disabled + '>' + label + '</button>' + sellAll + '</div></div></li>';
     }).join("");
     return "<p>" + escape(dialogue.text) + '</p><p class="panel-summary">เงินที่มี <strong>' + fmt(player.gold) +
       ' เบี้ย</strong></p><h3>ซื้อจากร้าน</h3><ul class="item-list">' + rows(stock, "buy") + "</ul>" +
@@ -413,17 +549,18 @@
         const slot = index + 1;
         const skill = game.getSlotSkill(slot);
         const name = escape(skill?.name ?? "ว่าง");
+        const draggable = game.isSkillEnabled(skill) ? ' data-drag-skill="' + skill.id + '"' : '';
         return '<button type="button" class="book-slot style-' + (skill?.icon ?? "empty") +
           '" data-action="select-skill-slot" data-id="' + slot + '" aria-pressed="' + (slot === selectedSlot) +
-          '" aria-label="ช่อง ' + slot + ' ' + name + '"><kbd>' + slot + '</kbd>' +
-          skillIcon(skill?.icon ?? "plus") + '<span>' + name + '</span></button>';
+          '" aria-label="ช่อง ' + slot + ' ' + name + '"' + draggable + '><kbd>' + slot + '</kbd>' +
+          skillArtwork(skill?.id ?? "empty") + '<span>' + name + '</span></button>';
       }).join("");
-      slots = '<div class="book-slots" role="group" aria-label="ช่องลัดสกิล 1 ถึง 5">' + slotButtons + '</div>' +
-        '<div class="book-instructions"><p id="skill-choice">คลิกสกิลที่เปิดแล้วเพื่อใส่ช่อง <strong>' + selectedSlot +
+      slots = '<div class="book-loadout"><div class="book-slots" role="group" aria-label="ช่องลัดสกิล 1 ถึง 5">' + slotButtons + '</div>' +
+        '<div class="book-instructions"><p id="skill-choice">ลากไอคอนลงช่อง 1–5 หรือคลิกสกิลเพื่อใส่ช่อง <strong>' + selectedSlot +
         '</strong></p><div class="book-slot-actions"><button type="button" data-action="clear-skill-slot"' +
         (game.getSlotSkill(selectedSlot) ? '' : ' disabled') + '>ล้างช่อง</button>' +
         '<button type="button" data-action="clear-all-skill-slots"' +
-        (state.skillSlots.some(Boolean) ? '' : ' disabled') + '>ล้างทั้งหมด</button></div></div>';
+        (state.skillSlots.some(Boolean) ? '' : ' disabled') + '>ล้างทั้งหมด</button></div></div></div>';
     }
     const catalog = active ? state.skills : state.passiveSkills;
     const cards = catalog.map((skill) => {
@@ -436,19 +573,19 @@
         label + ' ' + minimum + (current < minimum ? ' (มี ' + current + ')' : '') + '</span>').join("");
       const details = active ? '<small class="book-cost">' +
         [skill.cost + ' มานา', 'พัก ' + skill.cooldown + ' วิ.', skillRangeText(skill)].filter(Boolean).join(' · ') + '</small>' : '';
-      const content = '<span class="book-icon">' + skillIcon(skill.icon) + '</span><span class="book-card-text"><strong>' +
+      const content = '<span class="book-icon">' + skillArtwork(skill.id) + '</span><span class="book-card-text"><strong>' +
         escape(skill.name) + '</strong><small>' + escape(skill.description) + '</small>' + details +
         '<span class="book-requirements" aria-label="เงื่อนไข">' + requirements + '</span></span>';
       const main = active && enabled ? '<button type="button" class="book-card-main" data-action="assign-skill" data-id="' +
-        skill.id + '" aria-describedby="skill-choice">' + content + '</button>' :
+        skill.id + '" data-drag-skill="' + skill.id + '" aria-describedby="skill-choice">' + content + '</button>' :
         '<div class="book-card-main">' + content + '</div>';
       const activation = enabled ? '<span class="book-skill-status" tabindex="-1" data-action="skill-enabled" data-id="' +
         skill.id + '">ใช้งานแล้ว</span>' :
         unlocked ? '<button type="button" class="book-skill-enable" data-action="enable-skill" data-id="' +
           skill.id + '" aria-label="เปิดใช้งาน ' + escape(skill.name) + '">เปิดใช้งาน</button>' : '';
+      const controls = (status ? '<span class="book-card-state">' + status + '</span>' : '') + activation;
       return '<li class="book-card style-' + skill.icon + (unlocked ? '' : ' locked') + '">' + main +
-        '<div class="book-card-controls">' + (status ? '<span class="book-card-state">' + status + '</span>' : '') +
-        activation + '</div></li>';
+        (controls ? '<div class="book-card-controls">' + controls + '</div>' : '') + '</li>';
     }).join("");
     return '<div class="book-heading"><p>นักดาบมือเดียว <span>· Base Lv. ' + state.player.level + ' · Job Lv. ' + state.player.jobLevel +
       '</span></p><div class="book-tabs" role="group" aria-label="ประเภทสกิล">' + tabButtons + '</div></div>' +
@@ -460,6 +597,18 @@
     world.setRenderScale(displayQualities.get(displaySettings.quality).scale);
     const { brightness } = displaySettings;
     canvas.style.filter = brightness === 100 ? "" : "brightness(" + brightness + "%)";
+  }
+
+  function saveDisplaySettings() {
+    try { localStorage.setItem(displayKey, JSON.stringify(displaySettings)); } catch {}
+  }
+
+  function renderScoutingPanel(id) {
+    const { button, content } = scoutingPanels[id];
+    const expanded = displaySettings[id];
+    content.hidden = !expanded;
+    button.setAttribute("aria-expanded", String(expanded));
+    button.title = (expanded ? "ซ่อน" : "แสดง") + button.getAttribute("aria-label");
   }
 
   function settings() {
@@ -481,13 +630,15 @@
 
   function renderPanel() {
     bagContext.hidden = true;
+    clearDrag();
     const quest = state.trackedQuest;
-    const titles = { inventory: "กระเป๋าสัมภาระ", quests: "บันทึกภารกิจ", character: "สถานะตัวละคร", help: "วิธีเล่น", settings: "ตั้งค่า",
+    const titles = { inventory: "กระเป๋าสัมภาระ", equipment: "สวมใส่", quests: "บันทึกภารกิจ", character: "สถานะตัวละคร", help: "วิธีเล่น", settings: "ตั้งค่า",
       "auto-settings": "ตั้งค่าการเล่นอัตโนมัติ", skills: "สกิล", "reset-levels": "รีเซ็ตเลเวล", "reset-character": "เริ่มตัวละครใหม่",
-      "discard-item": "ทิ้งไอเทม",
+      "discard-item": "ทิ้งไอเทม", ferry: "เรือข้ามฟาก",
       dialogue: dialogue?.npc.name + (dialogue?.questView ? " (ภารกิจ)" : ""), vendor: dialogue?.npc.name };
     const content = {
       inventory,
+      equipment: equipmentPanel,
       "discard-item": discardItemPanel,
       character,
       settings,
@@ -508,16 +659,18 @@
       help: () => '<dl class="key-list"><dt>คลิกพื้น / WASD</dt><dd>เดินและสำรวจ</dd>' +
         '<dt>คลิกศัตรู / Space</dt><dd>เข้าประชิดและโจมตีต่อเนื่อง</dd>' +
         '<dt>1–5 · K</dt><dd>ใช้สกิล · เปิดหน้าต่างสกิล</dd><dt>F</dt><dd>คุยหรือเข้าเขตใกล้ตัว</dd>' +
-        '<dt>V · C · B</dt><dd>กระเป๋า ภารกิจ สถานะ</dd>' +
+        '<dt>V · E · C · B</dt><dd>กระเป๋า สวมใส่ ภารกิจ สถานะ</dd>' +
         '<dt>ลูกกลิ้ง</dt><dd>ซูมกล้อง</dd>' +
         '<dt>F11</dt><dd>เต็มหน้าจอ</dd><dt>Esc</dt><dd>เปิดตั้งค่าหรือปิดหน้าต่าง</dd></dl>',
       dialogue: npcDialogue,
       vendor: merchant,
+      ferry: ferryPanel,
     };
     text("dialog-title", titles[panel]);
     dialog.classList.toggle("skill-dialog", panel === "skills");
     dialog.classList.toggle("character-dialog", panel === "character");
     dialog.classList.toggle("inventory-dialog", panel === "inventory");
+    dialog.classList.toggle("equipment-dialog", panel === "equipment");
     $("dialog-content").innerHTML = content[panel]?.() ?? "";
   }
 
@@ -545,9 +698,129 @@
     }
   }
 
+  function clearDrag() {
+    const drag = activeDrag;
+    activeDrag = null;
+    if (!drag?.preview) return;
+    suppressDragClick = true;
+    drag.preview.remove();
+    drag.source.classList.remove("is-dragging");
+    drag.target?.classList.remove("drop-target");
+    if (drag.source.hasPointerCapture(drag.pointerId)) drag.source.releasePointerCapture(drag.pointerId);
+  }
+
+  function dropTarget(drag, x, y) {
+    const target = document.elementFromPoint(x, y);
+    if (drag.kind === "skill") return target?.closest(dialog.open ? ".book-slot" : "[data-skill]");
+    const slot = target?.closest("[data-equipment-slot]:not(:disabled)");
+    if (!slot) return null;
+    const key = slot.dataset.equipmentSlot;
+    const type = game.cardSlots.some(entry => entry.id === key) ? "card" : key;
+    return state.items[drag.id]?.slot === type && state.player.equipment[key] !== drag.id ? slot : null;
+  }
+
+  function highlightDropTarget(drag, x, y) {
+    const target = dropTarget(drag, x, y);
+    if (target === drag.target) return;
+    drag.target?.classList.remove("drop-target");
+    target?.classList.add("drop-target");
+    drag.target = target;
+  }
+
+  function scrollEquipmentDrag() {
+    const drag = activeDrag;
+    if (drag?.kind !== "equipment" || !drag.preview || drag.target) return;
+    const content = $("dialog-content");
+    const { left, right, top, bottom } = content.getBoundingClientRect();
+    const { pointerX: x, pointerY: y } = drag;
+    if (x < left || x > right || y < top || y > bottom) return;
+    const edge = 32;
+    const distance = Math.max(0, y - bottom + edge) - Math.max(0, top + edge - y);
+    if (!distance) return;
+    const previous = content.scrollTop;
+    content.scrollTop += distance * .28;
+    if (content.scrollTop !== previous) highlightDropTarget(drag, x, y);
+  }
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!event.isPrimary || event.button !== 0 || activeDrag) return;
+    suppressDragClick = false;
+    const source = event.target.closest("[data-drag-skill], [data-drag-equipment]");
+    if (!source) return;
+    const equipment = Boolean(source.dataset.dragEquipment);
+    if (equipment && event.target.closest("button")) return;
+    if (event.pointerType === "touch" && (equipment || source.matches(".book-card-main")) &&
+        !event.target.closest(equipment ? ".equipment-icon" : ".book-icon")) return;
+    activeDrag = { source, kind: equipment ? "equipment" : "skill", id: source.dataset.dragEquipment ?? source.dataset.dragSkill,
+      pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+  });
+
+  document.addEventListener("pointermove", (event) => {
+    const drag = activeDrag;
+    if (drag?.pointerId !== event.pointerId) return;
+    if (!drag.preview) {
+      if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 7) return;
+      if (!drag.source.isConnected) { clearDrag(); return; }
+      const preview = document.createElement("span");
+      preview.className = "drag-ghost";
+      preview.setAttribute("aria-hidden", "true");
+      if (drag.kind === "skill") {
+        const skill = state.skills.find(entry => entry.id === drag.id);
+        if (!game.isSkillEnabled(skill)) { clearDrag(); return; }
+        preview.classList.add("style-" + skill.icon);
+        preview.innerHTML = skillArtwork(skill.id);
+      } else {
+        preview.innerHTML = itemArtwork(drag.id);
+      }
+      (dialog.open ? dialog : document.body).append(preview);
+      drag.preview = preview;
+      drag.source.setPointerCapture(event.pointerId);
+      drag.source.classList.add("is-dragging");
+    }
+    drag.pointerX = event.clientX;
+    drag.pointerY = event.clientY;
+    drag.preview.style.transform = `translate(${event.clientX}px, ${event.clientY}px)`;
+    highlightDropTarget(drag, event.clientX, event.clientY);
+  });
+
+  document.addEventListener("pointerup", (event) => {
+    const drag = activeDrag;
+    if (drag?.pointerId !== event.pointerId) return;
+    const target = drag.preview && dropTarget(drag, event.clientX, event.clientY);
+    clearDrag();
+    if (!target) return;
+    if (drag.kind === "equipment") {
+      const slot = target.dataset.equipmentSlot;
+      if (state.items[drag.id]?.slot === "card") {
+        selectedCardSlot = slot;
+        runAction("equip-card", drag.id);
+      } else runAction("equip", drag.id);
+      return;
+    }
+    const slot = Number(target.dataset.id ?? target.dataset.skill);
+    if (dialog.open) {
+      selectedSlot = slot;
+      runAction("assign-skill", drag.id);
+    } else if (game.assignSkill(slot, drag.id)) {
+      renderHUD();
+    }
+  });
+
+  document.addEventListener("pointercancel", (event) => {
+    if (activeDrag?.pointerId === event.pointerId) clearDrag();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!suppressDragClick || event.detail === 0) return;
+    suppressDragClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+
   function runAction(action, id) {
     switch (action) {
       case "inventory":
+      case "equipment":
       case "quests":
       case "character":
       case "reset-character":
@@ -556,6 +829,13 @@
       case "settings":
       case "skills":
       case "auto-settings": openPanel(action); return;
+      case "toggle-scouting":
+        if (!Object.hasOwn(scoutingPanels, id)) return;
+        displaySettings[id] = !displaySettings[id];
+        renderScoutingPanel(id);
+        if (id === "minimap" && displaySettings.minimap) world.drawMinimap(minimap, state);
+        saveDisplaySettings();
+        return;
       case "quest-owner":
         if (!questActionLabels[state.trackedQuest.status]) return;
         if (dialog.open) dialog.close();
@@ -563,14 +843,37 @@
         renderHUD();
         return;
       case "accept-quest":
-        if (game.acceptQuest()) {
+      case "harbor-challenge":
+        if (action === "accept-quest" ? game.acceptQuest() : game.startHarborChallenge()) {
           dialog.close();
           canvas.focus({ preventScroll: true });
           renderHUD();
-          notify("รับภารกิจแล้ว");
+          if (action === "accept-quest") notify("รับภารกิจแล้ว");
+        }
+        return;
+      case "board-ferry":
+        if (panel === "ferry" && game.boardFerry(ferryOffer.id)) {
+          dialog.close();
+          canvas.focus({ preventScroll: true });
+          renderHUD();
         }
         return;
       case "inventory-select": selectedItem = id; break;
+      case "manage-card": {
+        const { equipment, classTier } = state.player;
+        const slots = game.cardSlots.filter(slot => classTier >= slot.classTier);
+        selectedCardSlot = (slots.find(slot => !equipment[slot.id]) ??
+          slots.find(slot => equipment[slot.id] === id) ?? slots[0]).id;
+        equipmentTab = "cards";
+        openPanel("equipment");
+        $("dialog-content").querySelector('[data-action="select-card-slot"][aria-pressed="true"]').focus();
+        return;
+      }
+      case "equipment-tab": equipmentTab = id; break;
+      case "select-card-slot": selectedCardSlot = id; break;
+      case "equip-card": game.equipItem(id, selectedCardSlot); break;
+      case "unequip-card": game.unequipCard(id); break;
+      case "unequip-armor": game.unequipArmor(); break;
       case "inventory-discard":
         if (game.discardableItemCount(id)) {
           selectedItem = id;
@@ -616,6 +919,8 @@
         game.resetCharacter();
         skillTab = "active";
         selectedSlot = 1;
+        equipmentTab = "gear";
+        selectedCardSlot = "card";
         hits.length = 0;
         effects.replaceChildren();
         dialog.close();
@@ -649,6 +954,7 @@
         break;
       case "buy": game.buyItem(id); break;
       case "sell": game.sellItem(id); break;
+      case "sell-all": game.sellItem(id, game.sellableItemCount(id)); break;
       default: return;
     }
     renderHUD();
@@ -659,10 +965,16 @@
         .find((element) => element.dataset.action === nextAction && element.dataset.id === id && !element.disabled);
       const slotButton = panel === "skills" && skillTab === "active"
         ? $("dialog-content").querySelector('[data-action="select-skill-slot"][aria-pressed="true"]') : null;
-      if (action === "skill-tab") $("dialog-content").scrollTop = 0;
+      if (action === "skill-tab" || action === "equipment-tab") $("dialog-content").scrollTop = 0;
       const itemButton = panel === "inventory" ? $("dialog-content").querySelector('.bag-slot[aria-pressed="true"]') : null;
       const statButton = panel === "character" ? $("dialog-content").querySelector('[data-action="confirm-stats"]:enabled') : null;
-      (replacement ?? slotButton ?? itemButton ?? statButton ?? $("dialog-close")).focus({ preventScroll: true });
+      const gearSlot = action === "unequip-armor" ? "armor" : action === "equip" ? state.items[id]?.slot : null;
+      const equipmentSlot = panel === "equipment" ? $("dialog-content").querySelector(gearSlot
+        ? '[data-equipment-slot="' + gearSlot + '"]' : '[data-action="select-card-slot"][aria-pressed="true"]') : null;
+      const vendorRow = panel === "vendor" && ["buy", "sell", "sell-all"].includes(action)
+        ? $("dialog-content").querySelector(`[data-vendor-row="${CSS.escape(id)}"][data-vendor-kind="${action === "buy" ? "buy" : "sell"}"]`)
+        : null;
+      (replacement ?? slotButton ?? itemButton ?? statButton ?? equipmentSlot ?? vendorRow ?? $("dialog-close")).focus({ preventScroll: true });
     }
   }
 
@@ -708,19 +1020,25 @@
     dialog.close();
   });
   dialog.addEventListener("close", () => {
-    if (!dialog.open) { panel = null; pendingStats = {}; keys.clear(); bagContext.hidden = true; }
+    if (!dialog.open) {
+      panel = null;
+      ferryOffer = null;
+      pendingStats = {};
+      keys.clear();
+      bagContext.hidden = true;
+      clearDrag();
+    }
   });
   dialog.addEventListener("contextmenu", (event) => {
     const slot = event.target.closest('[data-action="inventory-select"]');
     if (panel !== "inventory" || !slot) return;
     event.preventDefault();
     const { id } = slot.dataset;
-    const item = state.items[id];
     bagDiscardButton.dataset.id = id;
     bagDiscardButton.disabled = game.discardableItemCount(id) === 0;
     const reason = $("bag-context-reason");
     reason.hidden = !bagDiscardButton.disabled;
-    reason.textContent = state.player.equipment[item.slot] === id ? "กำลังสวมอยู่" :
+    reason.textContent = game.equippedItemCount(id) ? "กำลังสวมอยู่" :
       id === "rusty_sword" ? "ดาบประจำตัว" : "ไอเทมนี้ทิ้งไม่ได้";
     bagContext.hidden = false;
     const bounds = dialog.getBoundingClientRect();
@@ -760,7 +1078,7 @@
       default: return;
     }
     applyDisplaySettings();
-    try { localStorage.setItem(displayKey, JSON.stringify(displaySettings)); } catch {}
+    saveDisplaySettings();
   });
   dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
 
@@ -771,7 +1089,7 @@
       game.setAuto(false);
       game.selectTarget(entity.id);
       game.attack();
-    } else if (kind === "npc" || kind === "portal") {
+    } else if (kind === "npc" || kind === "portal" || kind === "interactable") {
       game.interact(entity.id);
     } else if (Number.isFinite(x) && Number.isFinite(y)) {
       game.moveTo(x, y);
@@ -782,7 +1100,7 @@
     world.zoomBy(event.deltaY > 0 ? 0.93 : 1.075);
   }, { passive: false });
 
-  const shortcuts = { KeyV: "inventory", KeyC: "quests", KeyB: "character", KeyH: "help", KeyK: "skills",
+  const shortcuts = { KeyV: "inventory", KeyE: "equipment", KeyC: "quests", KeyB: "character", KeyH: "help", KeyK: "skills",
     Space: "attack", KeyF: "talk", Escape: "settings" };
   const movement = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
   document.addEventListener("keydown", (event) => {
@@ -790,7 +1108,7 @@
     if (event.ctrlKey || event.metaKey || event.altKey || (code === "Space" && event.target.closest?.("button"))) return;
     if (dialog.open) {
       const action = shortcuts[code];
-      if (["inventory", "quests", "character", "help", "skills"].includes(action) && !event.repeat) {
+      if (["inventory", "equipment", "quests", "character", "help", "skills"].includes(action) && !event.repeat) {
         event.preventDefault();
         openPanel(action);
       }
@@ -811,7 +1129,7 @@
     }
   });
   document.addEventListener("keyup", (event) => keys.delete(event.code));
-  window.addEventListener("blur", () => keys.clear());
+  window.addEventListener("blur", () => { keys.clear(); clearDrag(); });
   window.addEventListener("pagehide", () => game.save());
   document.addEventListener("visibilitychange", () => { if (document.hidden) game.save(); });
 
@@ -836,6 +1154,9 @@
     if (event.type === "dialog") {
       dialogue = event;
       openPanel(event.npc.type === "vendor" ? "vendor" : "dialogue");
+    } else if (event.type === "ferry") {
+      ferryOffer = event;
+      openPanel("ferry");
     } else if (event.type === "skill" || event.type === "skill-strike") {
       world.playSkillEffect(event);
     } else if (event.type === "damage" && world.screenPoint) {
@@ -858,6 +1179,7 @@
   });
 
   function animate(now) {
+    scrollEquipmentDrag();
     const dt = Math.min(0.05, Math.max(0, (now - (lastRender || now)) / 1000));
     lastRender = now;
     const x = Number(keys.has("KeyD") || keys.has("ArrowRight")) - Number(keys.has("KeyA") || keys.has("ArrowLeft"));
@@ -880,7 +1202,7 @@
       effect.label.style.opacity = String(Math.min(1, 2 - 2 * progress));
     }
     if (now - portraitTime > 80) {
-      world.drawMinimap(minimap, state);
+      if (displaySettings.minimap) world.drawMinimap(minimap, state);
       renderHUD();
       portraitTime = now;
     }

@@ -83,7 +83,7 @@
     run: 'walk', hit: 'hurt', death: 'fall', defeat: 'fall', nod: 'gesture',
     flinch: 'hurt', float: 'idle', bow: 'gesture', dash: 'attack', slash: 'attack',
     strike: 'attack', magic: 'cast', interact: 'talk', skill: 'cast', blink: 'idle',
-    breathe: 'idle', alert: 'guard', stomp: 'slam', jump: 'hop', howl: 'roar',
+    breathe: 'idle', alert: 'guard', stomp: 'slam', jump: 'hop', howl: 'roar', 'chalawan-bite': 'attack',
   };
 
   function clamp(value, minimum, maximum) {
@@ -463,6 +463,8 @@
     const healEffect = window.AyothayaHealEffect?.create(requestDraw);
     const interruptEffect = window.AyothayaInterruptEffect?.create(requestDraw);
     const pretSlamEffect = window.AyothayaPretSlamEffect?.create(requestDraw);
+    const chalawanEffect = window.AyothayaChalawanEffect;
+    const chalawanSweepEffect = chalawanEffect?.create(requestDraw);
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const piercing = window.AyothayaPiercingEffect;
     const piercingEffects = { dash: piercing?.create('dash', requestDraw), thrust: piercing?.create('thrust', requestDraw) };
@@ -656,6 +658,39 @@
       pretSlamEffect.foreground(ctx, project, unit, slam, elapsed, reducedMotion.matches);
     }
 
+    function drawChalawanPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette) {
+      const { slam, entranceDuration } = window.AyothayaGame.chalawan;
+      const entrance = motion.id === 'chalawan-entrance';
+      const unit = Math.min(width / 320, height / (entrance ? 300 : 210)) * Math.min(zoom, 1.16);
+      const x = width / 2;
+      const y = groundY - 15 * unit;
+      if (entrance) {
+        const source = [x + 94 * unit, y - 67 * unit];
+        const landing = [x - 42 * unit, y];
+        ellipse(ctx, ...source, 47 * unit, 15 * unit);
+        ctx.fillStyle = 'rgba(75,153,145,.31)';
+        ctx.fill();
+        chalawanEffect.entrance(ctx, source, landing, elapsed, entranceDuration, unit, reducedMotion.matches, (size, headLeft) => {
+          const artHeight = size * actor.rect[3] / actor.rect[2];
+          if (headLeft) ctx.scale(-1, 1);
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(record.image, ...actor.rect, -size / 2, -artHeight, size, artHeight);
+        });
+        return;
+      }
+
+      const project = (dx, dy) => [x + dx * .7 * unit, y + dy * .39 * unit];
+      const artWidth = 129 * unit;
+      const artHeight = artWidth * actor.rect[3] / actor.rect[2];
+      const progress = clamp(elapsed / (slam.windup + slam.recovery), 0, 1);
+      const tilt = reducedMotion.matches ? 0 : Math.sin(progress * TAU) * .19;
+      chalawanSweepEffect.ground(ctx, project, slam, elapsed, reducedMotion.matches);
+      paintShadow(ctx, x, y, artWidth, artHeight, 0, palette, 'idle', 0);
+      paintActor(ctx, record.image, actor, { x, y, width: artWidth, height: artHeight,
+        pose: [0, 0, tilt, 1, 1, 1], type: 'idle', phase: 0, traits: actorTraits(actor) });
+      chalawanSweepEffect.foreground(ctx, project, slam, elapsed, reducedMotion.matches);
+    }
+
     function draw(actor, motion, elapsed, { zoom = 1, ground = 'dark' } = {}) {
       if (!ctx) return;
       const width = canvas.clientWidth;
@@ -707,11 +742,16 @@
         drawPretSlamPreview(record, actor, elapsed, width, height, groundY, zoom, palette);
         return;
       }
+      if (chalawanEffect && (motion?.id === 'chalawan-entrance' || motion?.id === 'tail-sweep')) {
+        drawChalawanPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette);
+        return;
+      }
 
       const traits = actorTraits(actor);
-      const type = identifyMotion(motion, traits);
       const phase = clamp((elapsed || 0) / (motion?.duration || 1), 0, 1);
-      const pose = poseFor(type, phase, traits);
+      const collapse = motion?.id === 'chalawan-fall' ? chalawanEffect?.collapsePose(phase) : null;
+      const type = collapse ? 'idle' : identifyMotion(motion, traits);
+      const pose = collapse ? [0, 0, collapse.tilt, collapse.stretchX, collapse.stretchY, 1] : poseFor(type, phase, traits);
       const [, , artWidth, artHeight] = actor.rect;
       const frame = fitActor(actor, pose, artWidth / artHeight, type, width, height, groundY, zoom);
       const { x, y, width: imageWidth, height: imageHeight } = frame;

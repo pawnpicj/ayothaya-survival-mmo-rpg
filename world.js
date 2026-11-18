@@ -676,6 +676,8 @@
         doorways:{
           'west-gate':{x:180,y:544,rx:34,ry:58,
             clip:[[152,597],[152,524],[157,506],[168,494],[181,483],[198,499],[207,520],[207,597]]},
+          'harbor-gate':{x:149,y:314,rx:22,ry:50,
+            clip:[[130,363],[130,292],[138,279],[148,267],[160,281],[170,296],[170,363]]},
           'inner-gate':{x:1369,y:277,rx:34,ry:58,
             clip:[[1339,331],[1339,259],[1347,246],[1367,223],[1383,240],[1398,261],[1399,331]]}
         }
@@ -684,6 +686,14 @@
         src:'assets/abandoned-cemetery.png',x1:.17,x2:.91,y1:.37,y2:.88,
         doorways:{'cemetery-exit':{x:170,y:485,rx:41,ry:124,
           clip:[[132,602],[135,446],[147,397],[177,351],[199,375],[214,423],[191,495],[188,602]]}}
+      },
+      harbor:{
+        src:'assets/tha-kham-harbor.png',x1:.18,x2:.86,y1:.48,y2:.87,
+        doorways:{'harbor-exit':{x:176,y:505,rx:39,ry:109,
+          clip:[[140,611],[140,467],[146,445],[158,423],[177,401],[195,418],[208,444],[210,464],[210,611]]}}
+      },
+      nipa:{
+        src:'assets/nipa-landing.png',x1:.24,x2:.88,y1:.454,y2:.87,doorways:{}
       },
       training:{
         src:'assets/training-yard.png',x1:.266,x2:.88,y1:.32,y2:.86,
@@ -706,6 +716,8 @@
     vortexSprite.src='assets/red-vortex.png';
     const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
     const pretSlamEffect = window.AyothayaPretSlamEffect?.create();
+    const chalawanEffect = window.AyothayaChalawanEffect;
+    const chalawanSweepEffect = chalawanEffect?.create();
     const activeEffects = [];
     const heavyEffect = window.AyothayaHeavyEffect?.create();
     const sweepEffect = window.AyothayaSweepEffect?.create();
@@ -727,12 +739,19 @@
     dummySprite.src='assets/training-dummy.png';
     const pretSprite=new Image();
     pretSprite.src='assets/pret-boss.png';
+    const chalawanSprite=new Image();
+    chalawanSprite.src='assets/chalawan-boss.png';
+    const harborCrateSprite=new Image();
+    harborCrateSprite.src='assets/harbor-crate.png';
+    const nipaSignSprite=new Image();
+    nipaSignSprite.src='assets/nipa-return-sign.png';
     const villageNpcSheet=new Image();
     villageNpcSheet.src='assets/village-npcs.png';
     const npcSprites={
       elder:{image:villageNpcSheet,column:0},
       vendor:{image:villageNpcSheet,column:1},
       guard:{image:villageNpcSheet,column:2},
+      'harbor-master':{image:villageNpcSheet,column:2},
       'ruins-guard':{image:rangerSprite,column:0}
     };
     let guardianSprite=null;
@@ -778,11 +797,25 @@
       return fromX+(toX-fromX)*(v-fromY)/(toY-fromY);
     }
 
+    function findGateApproach(gates, y, matches) {
+      let nearest;
+      let gap = Infinity;
+      for (const gate of gates) {
+        if (!matches(gate)) continue;
+        const inner = gate.outer > gate.inner ? gate.route[0] : gate.route.at(-1);
+        const distance = Math.abs(y - inner[1]);
+        if (distance >= gap) continue;
+        nearest = gate;
+        gap = distance;
+      }
+      return nearest;
+    }
+
     function normalized(x,y,view=map,gates=approaches) {
       const {minX,maxX,minY,maxY}=bounds;
       const v=view.y1+(view.y2-view.y1)*(y-minY)/(maxY-minY);
       const edge=rightEdge(v,view);
-      const gate=gates.find(gate=>gate.outer>gate.inner ? x>gate.inner : x<gate.inner);
+      const gate=findGateApproach(gates,y,gate=>gate.outer>gate.inner ? x>gate.inner : x<gate.inner);
       if(gate) {
         const start=gate.outer>gate.inner ? edge : view.x1;
         return [start+(gate.viewX-start)*(x-gate.inner)/(gate.outer-gate.inner),v];
@@ -807,13 +840,14 @@
         const u=(sx-scene.x)/scene.w;
         const {minX,maxX,minY,maxY}=bounds;
         const edge=rightEdge(v,map);
+        const y=minY+(v-map.y1)/(map.y2-map.y1)*(maxY-minY);
         let x=minX+(u-map.x1)/(edge-map.x1)*(maxX-minX);
-        const gate=approaches.find(gate=>gate.outer>gate.inner ? u>edge : u<map.x1);
+        const gate=findGateApproach(approaches,y,gate=>gate.outer>gate.inner ? u>edge : u<map.x1);
         if(gate) {
           const start=gate.outer>gate.inner ? edge : map.x1;
           x=gate.inner+(u-start)/(gate.viewX-start)*(gate.outer-gate.inner);
         }
-        return {x,y:minY+(v-map.y1)/(map.y2-map.y1)*(maxY-minY)};
+        return {x,y};
       }
       const a=(sx-width/2)/zoom,b=(sy-height*.64)/(zoom*PITCH);
       const c=Math.cos(camera.yaw),s=Math.sin(camera.yaw);
@@ -898,6 +932,7 @@
     }
 
     function portalIsOpen(portal, state) {
+      if (portal.key) return state.harborUnlocked;
       const gate = state.zoneInfo.innerGate;
       if (portal.id === gate?.id) return gate.open;
       return !portal.quest || state.quest.status === 'completed';
@@ -1015,6 +1050,111 @@
       ctx.restore();
     }
 
+    function drawHarborInteractable(entity,x,y,state,time){
+      const scale=clamp(sceneMode ? scene.h/660 : zoom,.8,2.1);
+      if(entity.id==='nipa-boarding' && nipaSignSprite.naturalWidth){
+        drawNipaReturnSign(entity,x,y,scale);
+        return;
+      }
+      const crate=entity.type==='harbor-crate';
+      const open=state.harborQuest.status==='completed';
+      shadow(x,y,(crate?16:25)*scale,4*scale);
+      ctx.save();
+      ctx.translate(Math.round(x),Math.round(y));
+      ctx.scale(scale,scale);
+      if(crate){
+        if(harborCrateSprite.naturalWidth) {
+          ctx.imageSmoothingEnabled=false;
+          ctx.drawImage(harborCrateSprite,-21,-42,42,42);
+        }
+        ctx.fillStyle='#f5d477';
+        const glow=reducedMotion.matches?0:Math.round(Math.sin(time*4)*2);
+        ctx.fillRect(-1,-49+glow,2,8);
+        ctx.fillRect(-4,-46+glow,8,2);
+      } else {
+        drawHarborSign(entity.signText,open);
+      }
+      ctx.restore();
+      const title=open || crate ? entity.name : entity.name+' · ปิด';
+      label(title,x,y-(crate?53:67)*scale,open&&!crate?'portal':'npc',clamp(scale,.9,1.2));
+      hitAreas.push({kind:'interactable',entity,sx:x,sy:y,radius:(crate?24:38)*scale,height:(crate?56:71)*scale});
+    }
+
+    function drawNipaReturnSign(entity,x,y,scale){
+      const width=60;
+      const height=width*nipaSignSprite.naturalHeight/nipaSignSprite.naturalWidth;
+      const top=-height*.96;
+      const letteringY=top+height*.44;
+      shadow(x+3*scale,y,23*scale,3*scale,'rgba(61,32,15,.30)');
+      ctx.save();
+      ctx.translate(Math.round(x),Math.round(y));
+      ctx.scale(scale,scale);
+      ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(nipaSignSprite,-width/2,top,width,height);
+      ctx.font='700 9px "Leelawadee UI", Tahoma, sans-serif';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillStyle='#f5d5a2';
+      ctx.strokeStyle='#4f2b19';
+      ctx.lineWidth=1.4;
+      ctx.strokeText(entity.signText,0,letteringY,width*.72);
+      ctx.fillText(entity.signText,0,letteringY,width*.72);
+      ctx.restore();
+      hitAreas.push({kind:'interactable',entity,sx:x,sy:y,radius:(width/2+3)*scale,height:(height+4)*scale});
+    }
+
+    function drawHarborSign(title,open){
+      const ink='#2b1c14', gold='#dfaf5d';
+      for (const post of [-24, 24]) {
+        poly(ctx,[[post-5,-53],[post+4,-56],[post+4,-1],[post-5,1]],'#64402a',ink);
+        ctx.fillStyle='#ab7847';
+        ctx.fillRect(post-3,-51,2,48);
+        ctx.fillStyle='#c09861';
+        ctx.fillRect(post-5,-16,9,2);
+        ctx.fillRect(post-5,-13,9,2);
+      }
+      const plaque=[[-36,-44],[-30,-51],[-15,-51],[-8,-55],[0,-62],[8,-55],[15,-51],[30,-51],
+        [36,-44],[33,-26],[25,-21],[-25,-21],[-33,-26]];
+      poly(ctx,plaque.map(([x,y])=>[x,y+3]),'#4e2c21',ink);
+      poly(ctx,plaque,'#8e552f',ink);
+      poly(ctx,[[-31,-43],[-26,-47],[-13,-47],[-7,-51],[0,-57],[7,-51],[13,-47],[26,-47],
+        [31,-43],[29,-28],[23,-25],[-23,-25],[-29,-28]],open?'#234e46':'#49362b',gold);
+      poly(ctx,[[-7,-49],[6,-49],[9,-51],[6,-45],[-4,-45]],gold);
+      poly(ctx,[[-2,-49],[-2,-54],[4,-49]],'#ffe4a2');
+      ctx.fillStyle='#ffe3aa';
+      ctx.font='700 9px "Leelawadee UI", Tahoma, sans-serif';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText(title,0,-35,53);
+      for (const x of [-34,34]) {
+        ctx.fillStyle='#352319';
+        ctx.fillRect(x-3,-28,6,10);
+        ctx.fillStyle=gold;
+        ctx.fillRect(x-2,-27,4,1);
+        ctx.fillStyle=open?'#a1f5c8':'#dc9260';
+        ctx.fillRect(x-2,-25,4,5);
+      }
+    }
+
+    function chalawanDrawHeight(width) {
+      return width*(chalawanSprite.naturalHeight/chalawanSprite.naturalWidth || .4);
+    }
+
+    function drawChalawanSprite(width, headLeft) {
+      if (!chalawanSprite.naturalWidth) return;
+      const height=chalawanDrawHeight(width);
+      if(headLeft) ctx.scale(-1,1);
+      ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(chalawanSprite,Math.round(-width*.5),Math.round(-height),Math.round(width),Math.round(height));
+    }
+
+    function drawChalawanEntrance(boss) {
+      const {waterX,waterY,elapsed,duration}=boss.entrance;
+      const unit=sceneMode ? scene.h/510 : clamp(zoom,.6,2.4);
+      chalawanEffect?.entrance(ctx, project(waterX,waterY), project(boss.x,boss.y),
+        elapsed, duration, unit, reducedMotion.matches, drawChalawanSprite);
+    }
+
     function drawActor(actor,kind,sx,sy,state,time){
       if(kind==='portal'){
         drawPortal(actor,sx,sy,time,portalIsOpen(actor,state));
@@ -1043,8 +1183,9 @@
       const pose=dir==='nw'?'w':dir==='ne'?'e':dir==='sw'?'w':dir==='se'?'e':dir;
       const atlasEntry=spritesheet[type==='player'?pose:type];
       const baseHeight=actor.boss ? 1.92 : kind==='enemy'?(type==='guardian'||type==='dummy'?.9:type==='tamarind'||type==='monkey'?.5:.66):.77;
-      const heightOnScreen=spriteSize*baseHeight;
-      const radius=spriteSize*(actor.boss ? .53 : type==='guardian'?.46:type==='dummy'?.37:kind==='enemy'?.29:.255);
+      const crocodile=type==='chalawan';
+      const heightOnScreen=crocodile ? chalawanDrawHeight(spriteSize*2.19) : spriteSize*baseHeight;
+      const radius=spriteSize*(crocodile ? 1.03 : actor.boss ? .53 : type==='guardian'?.46:type==='dummy'?.37:kind==='enemy'?.29:.255);
       if (state.targetId===actor.id&&kind==='enemy'&&!dead) {
         const t=(Math.cos(time*6)+1)*.5;
         shadow(sx,sy+2,radius+3+2*t,5+1.5*t,'rgba(214,98,53,.40)');
@@ -1060,10 +1201,25 @@
         :walking?Math.abs(Math.sin(phase))*2.8*scale:Math.sin(time*2.8+actor.x)*scale*.95;
       ctx.save();
       ctx.translate(Math.round(sx),Math.round(sy-bounce));
-      if(dead){ ctx.globalAlpha=.46;ctx.rotate(Math.PI*.43); }
+      if(dead){
+        if(crocodile && chalawanEffect){
+          const progress=1-actor.actionTime/actor.actionDuration;
+          const {tilt,stretchX,stretchY}=chalawanEffect.collapsePose(progress,dx<0);
+          ctx.rotate(tilt);
+          ctx.scale(stretchX,stretchY);
+          ctx.globalAlpha=1-.54*clamp((progress-.65)/.35,0,1);
+        } else {
+          ctx.globalAlpha=.46;
+          ctx.rotate(crocodile?.12:Math.PI*.43);
+        }
+      }
       else if(slam&&pretSlamEffect){
         const {stretchX,stretchY}=pretSlamEffect.pose(slam,slam.windup+slam.recovery-actor.actionTime);
         ctx.scale(stretchX,stretchY);
+      }
+      else if(crocodile && attack && actor.attackStyle==='tail-sweep'){
+        ctx.rotate(Math.sin(progress*TAU)*.19*(dx<0?-1:1));
+        ctx.scale(1+swing*.1,1-swing*.08);
       }
       else if(attack){
         const lunge=swing*unit*(actor.attackStyle==='heavy'?12:8);
@@ -1093,6 +1249,8 @@
         const w=Math.round(h*pretSprite.naturalWidth/pretSprite.naturalHeight);
         if(dx<0) ctx.scale(-1,1);
         ctx.drawImage(pretSprite,-Math.round(w*.43),-h,w,h);
+      } else if(crocodile) {
+        drawChalawanSprite(spriteSize*2.19,dx<0);
       } else if(type==='guardian' && guardianSprite) {
         const {sprite,anchor}=guardianSprite;
         const w=Math.round(heightOnScreen*sprite.width/sprite.height);
@@ -1118,7 +1276,7 @@
         ctx.drawImage(sprites.get(key),-w/2,-h,w,h);
       }
       ctx.restore();
-      if(attack&&!slam&&!armedPlayer) drawSlash(sx,sy-heightOnScreen*.49,bearing,progress,unit,kind,actor.attackStyle);
+      if(attack&&!slam&&!armedPlayer&&!crocodile) drawSlash(sx,sy-heightOnScreen*.49,bearing,progress,unit,kind,actor.attackStyle);
       if(cast&&!dead&&kind!=='player'){
         ctx.strokeStyle='#c9eccb';
         ctx.lineWidth=1;
@@ -1138,7 +1296,8 @@
           label(title,sx,nameY,actor.boss?'boss':kind,clamp(scale,.76,1.10));
         }
         const quest=state.trackedQuest;
-        if(kind==='npc'&&actor.id===quest?.npcId&&['available','ready'].includes(quest.status)){
+        const challengeAvailable=quest?.status==='completed'&&quest.loot==='unclaimed';
+        if(kind==='npc'&&actor.id===quest?.npcId&&(['available','ready'].includes(quest.status)||challengeAvailable)){
           const markerScale=clamp(scale,.85,1.8);
           const bob=reducedMotion.matches?0:Math.sin(time*3.5)*2*markerScale;
           drawQuestMarker(sx,nameY-16*markerScale+bob,markerScale,quest.status==='ready');
@@ -1259,6 +1418,13 @@
       const elapsed = slam.windup + slam.recovery - actionTime;
       const projectSlam = (dx, dy, height = 0) => project(x + dx, y + dy, height);
       pretSlamEffect?.[foreground ? 'foreground' : 'ground'](ctx, projectSlam, unit, slam, elapsed, reducedMotion.matches);
+    }
+
+    function drawChalawanSweep(actor, foreground = false) {
+      const {x,y,actionTime,slam}=actor;
+      const elapsed=slam.windup+slam.recovery-actionTime;
+      const projectSweep=(dx,dy)=>project(x+dx,y+dy);
+      chalawanSweepEffect?.[foreground?'foreground':'ground'](ctx, projectSweep, slam, elapsed, reducedMotion.matches);
     }
 
     function glow(point, radius, color) {
@@ -1640,26 +1806,37 @@
       };
       hitAreas=[];
       if(zone) for(const object of zone.objects) add(object,'scenery');
-      for(const mob of state.enemies||[]) if(mob.visible!==false) add(mob,'enemy');
+      const arriving=state.enemies?.find(enemy=>enemy.entrance);
+      for(const mob of state.enemies||[]) if(mob.visible!==false && !mob.entrance) add(mob,'enemy');
       for(const npc of state.npcs||[]) add(npc,'npc');
+      for(const entity of state.interactables||[]) add(entity,'interactable');
       for(const portal of portals) add(portal,'portal');
       for(const player of state.remotePlayers||[]) add(player,'remote');
       add(state.player,'player');
       entries.sort((a,b)=>a.depth-b.depth);
       const models=zone?createModels(ctx,project,camera.yaw):null;
       const slamming=entries.find(({entity})=>entity.action==='attack' && entity.attackStyle==='pret-slam')?.entity;
+      const sweeping=entries.find(({entity})=>entity.action==='attack' && entity.attackStyle==='tail-sweep')?.entity;
       if(slamming) drawPretSlam(slamming);
+      if(sweeping) drawChalawanSweep(sweeping);
       drawSkillEffects(state.player, time, true);
       for(const {entity,kind,x,y} of entries){
-        if(kind!=='scenery') drawActor(entity,kind,x,y,state,time);
+        if(kind==='interactable') drawHarborInteractable(entity,x,y,state,time);
+        else if(kind!=='scenery') drawActor(entity,kind,x,y,state,time);
         else if(entity.type==='tree'||entity.type==='shrub') drawTree(entity,x,y);
         else models.place(entity,time);
       }
+      if(arriving) drawChalawanEntrance(arriving);
       drawSkillEffects(state.player, time);
       if(slamming) drawPretSlam(slamming, true);
+      if(sweeping) drawChalawanSweep(sweeping,true);
       if(slamming && slamming.actionTime>slamming.slam.recovery){
         const [x,y]=project(slamming.x,slamming.y+slamming.slam.radius*.78);
         label('ทุบพื้น',x,y,'boss',clamp(zoom,.8,1.1));
+      }
+      if(sweeping && sweeping.actionTime>sweeping.slam.recovery){
+        const [x,y]=project(sweeping.x,sweeping.y+sweeping.slam.radius*.78);
+        label('ฟาดหาง',x,y,'boss',clamp(zoom,.8,1.1));
       }
       embers(time,ruins);
       lastTime=time;
@@ -1719,6 +1896,10 @@
         if(enemy.visible!==false&&enemy.hp>0) marker(enemy,enemy.boss?'#eb9cff':'#db9261',enemy.boss?3.2:1.35);
       }
       for(const npc of state.npcs||[]) marker(npc,'#efd163',2.1);
+      for(const entity of state.interactables||[]) {
+        const open=entity.type==='ferry' && state.harborQuest.status==='completed';
+        marker(entity,open?'#b6e8be':'#f4cd79',2.5);
+      }
       for(const portal of state.portals||[]) {
         marker(portal,portalIsOpen(portal,state)?'#b8ece3':'#e2ad68',2.3);
       }

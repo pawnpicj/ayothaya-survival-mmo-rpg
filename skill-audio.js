@@ -157,7 +157,7 @@
           cue = "critical";
         } else if (event.enemy && event.skill === null) {
           cue = "sword";
-        } else if (event.enemy === false) {
+        } else if (event.enemy === false && event.status !== "bleed") {
           cue = "monster";
           if (event.guarded) voices = blocked;
         }

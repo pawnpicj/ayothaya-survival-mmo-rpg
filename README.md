@@ -18,6 +18,16 @@
 
 ในป่าช้าวัดร้าง กำจัดวิญญาณเฝ้าหลุมและอารักษ์ป่าช้ารวม **100 ตัว** ฝูงจะหายไป แล้ว **บอสผีเปรต** จะปรากฏที่ลานพิธีเพียงตัวเดียว หลังปราบบอส **10 วินาที** ฝูงจะเกิดใหม่และเริ่มนับรอบถัดไป ดูตัวนับและเวลารอได้จากแถบภารกิจ เกมบันทึกความคืบหน้าตามตัวละคร บอสมีโอกาสดรอปการ์ด **0.025%** ออกจากป่าช้าได้ทางซุ้มฝั่งซ้ายหรือใช้คัมภีร์กลับเมือง
 
+เมื่อปราบผีเปรตจะได้ **กุญแจผี 1 ดอก** หากในกระเป๋ายังไม่มีกุญแจ กลับไปดงเจดีย์ร้างแล้วคลิกซุ้มอิฐฝั่งซ้ายบน หรือกด **F** เมื่ออยู่ใกล้ เพื่อใช้กุญแจเปิดทางไป **ท่าเรือท่าข้าม** ประตูจะเปิดค้างตามเซฟตัวละคร ทางกลับอยู่ซุ้มฝั่งซ้ายของท่าเรือ
+
+ที่ท่าเรือ คุยกับ **นายท่าอิน** ข้างบันไดศาลาริมน้ำเพื่อรับภารกิจ **เรือเที่ยวสุดท้าย** คลิกหีบสินค้าฝั่งตะวันออก หรือกด **F** ใกล้หีบ เมื่อเก็บหีบแล้ว **ชาละวัน** จะกระโจนขึ้นกลางลาน หลบออกนอกวงเตือนตอนชาละวันฟาดหาง หลังปราบสำเร็จ ให้นำหีบกลับไปส่งนายท่าอินเพื่อเปิดจุดขึ้นเรือ ความคืบหน้าและสถานะจุดขึ้นเรือบันทึกในเซฟตัวละคร
+
+ชาละวันกัดโดนจะทำให้เลือดไหลทุกครั้ง เสีย HP ทุกวินาทีเป็นเวลา 3 วินาที โดยแต่ละครั้งเสีย 15% ของดาเมจที่ได้รับจากการกัด เมื่อโดนกัดซ้ำ ระยะเวลาเลือดไหลจะเริ่มนับใหม่
+
+ชนะชาละวันครั้งแรกจะได้ **เกราะหนังเจ้าแห่งลุ่มแม่น้ำ** (DEF +5, HP สูงสุด +50) และ **การ์ดชาละวัน** (ATK +5 และดาเมจ +15% ต่อศัตรูที่เลือดออก) โบนัส 15% ใช้กับการโจมตี สกิล และดาเมจเลือดออก เซฟเดิมที่จบเควสต์แล้วคุยกับนายท่าอินเพื่อท้าชาละวันรับรางวัลได้
+
+หลังส่งเควสต์แล้ว คลิก **จุดขึ้นเรือ** ที่ศาลาริมน้ำ หรือกด **F** เมื่ออยู่ใกล้ แล้วเลือก **ขึ้นเรือ** เพื่อไป **ป่าจากน้ำกร่อย** ขาไปเที่ยวแรกฟรี เที่ยวถัดไป 20 เบี้ย จากปลายทางใช้ป้าย **เรือกลับท่าข้าม** ขากลับฟรีทุกเที่ยว
+
 เมื่อผีเปรตเตรียม **ทุบพื้น** จะมีวงเตือนรัศมี **160 หน่วย** รอบตัวบอส ผู้เล่นที่อยู่ในวงตอนปะทะจะติดสตัน **0.08 วินาที** การโจมตีปกติที่โดนมีโอกาส **0.2%** ให้ติดสตัน **0.01 วินาที**
 
 เบี้ยจากการปราบมอนสเตอร์ ส่งภารกิจ และขายของให้ร้านลดลงครึ่งหนึ่งโดยปัดลง ถ้า Base Lv. ของผู้เล่นสูงกว่ามอนสเตอร์ **10–14 เลเวล** จะได้รับ Base EXP และ Job EXP **70%** ของเรตปัจจุบัน ถ้าสูงกว่า **15 เลเวลขึ้นไป** จะไม่ได้ EXP จากการกำจัดตัวนั้น
@@ -30,7 +40,11 @@
 
 เปิด [พรีวิวแอนิเมชัน](preview.html) จากไอคอนเล่นบนแถบเมนูเกมเพื่อดูตัวละคร, NPC และมอนสเตอร์จากชุดคอนเซ็ปต์ใหม่ เลือกท่าแล้วปรับความเร็ว เลื่อนเวลา หรือดูทีละเฟรมได้ รายการนักดาบมือเดียวใช้สไปรต์และท่าถือดาบจากเกม ส่วนตัวละครชุดคอนเซ็ปต์ใช้ภาพมุมเดียวเพื่อทดลองจังหวะและเอฟเฟกต์
 
+เมื่อเพิ่มมอนสเตอร์ บอส หรือนักรบคลาสใหม่ ให้เพิ่มตัวละครและท่าของตัวละครนั้นใน Animation Preview ตาม [กติกาของโปรเจกต์](AGENTS.md)
+
 กด **V** เพื่อเปิดกระเป๋าแบบช่องไอเทม คลิกไอเทมเพื่อดูรายละเอียด ใช้ หรือสวม กด **การ์ด** เพื่อกรองเฉพาะการ์ด เลือกไอเทมที่ใช้หรือสวมได้แล้วกด **ใส่ช่องบน** หรือ **ใส่ช่องล่าง** เพื่อกำหนดช่องลัดข้างแถบสกิล
+
+กด **E** หรือปุ่ม **สวมใส่** ในกระเป๋าเพื่อดูอุปกรณ์และเปลี่ยนอาวุธ ลากไอคอนอาวุธหรือการ์ดจากรายการในหน้าสวมใส่ไปวางในช่องที่ต้องการ หรือใช้ปุ่มสวมตามปกติ Class 1 ใช้ช่องการ์ด 1–2, Class 2 เพิ่มช่อง 3 และ Class 3 เพิ่มช่อง 4 ใส่การ์ดซ้ำได้ตามจำนวนใบที่มี และโบนัสจากทุกช่องจะรวมกัน
 
 ซื้อ **คัมภีร์กลับเมือง** จากแม่ค้าสมุนไพรใบละ **20 เบี้ย** แล้วใส่คัมภีร์ลงช่องลัดหรือกด **ใช้** ในกระเป๋าเพื่อกลับจุดเริ่มต้นของเมืองที่ใกล้ที่สุด ใช้ครั้งละหนึ่งใบ
 
@@ -42,7 +56,7 @@
 
 นักดาบฝึกหัดถือดาบมือขวาขณะยืน เดิน และโจมตี เมื่อถึง Base Lv. 10 ให้กด **V** เปิดกระเป๋าแล้วสวมดาบสำริด
 
-กด **K** หรือคลิกไอคอนหนังสือในแถบเมนูด้านบนเพื่อเปิดหน้าต่างสกิล เลือก **เปิดใช้งาน** เมื่อ Base Lv., Job Lv. และค่าสเตตัสถึงเงื่อนไขที่แสดงบนการ์ดสกิลในแท็บ **Active** หรือ **Passive** สกิล Active ที่เปิดแล้วใช้กับปุ่มลัดหรือ Auto ได้ ส่วนสกิล Passive จะเริ่มให้โบนัสทันที ในแท็บ Active ให้เลือกช่อง 1–5 แล้วคลิกสกิลที่เปิดแล้วเพื่อจัดลงช่อง ปุ่ม **ล้างทั้งหมด** ทำให้ช่องลัดทั้ง 5 ว่าง การเปิดใช้งานและการจัดช่องจะบันทึกพร้อมเซฟเกม
+กด **K** หรือคลิกไอคอนหนังสือในแถบเมนูด้านบนเพื่อเปิดหน้าต่างสกิล เลือก **เปิดใช้งาน** เมื่อ Base Lv., Job Lv. และค่าสเตตัสถึงเงื่อนไขที่แสดงบนการ์ดสกิลในแท็บ **Active** หรือ **Passive** สกิล Active ที่เปิดแล้วใช้กับปุ่มลัดหรือ Auto ได้ ส่วนสกิล Passive จะเริ่มให้โบนัสทันที ในแท็บ Active ลากไอคอนสกิลที่เปิดแล้วไปวางในช่อง 1–5 ด้านบน หรือเลือกช่องก่อนแล้วคลิกสกิล ลากไอคอนในแถบสกิลด้านล่างเพื่อย้ายหรือสลับช่องได้เช่นกัน ปุ่ม **ล้างทั้งหมด** ทำให้ช่องลัดทั้ง 5 ว่าง การเปิดใช้งานและการจัดช่องจะบันทึกพร้อมเซฟเกม
 
 | Base Lv. | สกิลที่ปลดล็อกตามเลเวล |
 | --- | --- |
@@ -60,6 +74,8 @@
 
 กด **B → รีเซ็ตเลเวล** เพื่อตั้ง Base Lv. และ Job Lv. เป็น 1 และ EXP เป็น 0
 
+หน้าสถานะ **B** แสดงเพดาน Base Lv. และ Job Lv. ของ Class ปัจจุบัน Class 1 มีเพดาน **35 / 10**, Class 2 **99 / 35** และ Class 3 **99 / 50** เมื่อถึงเพดาน แถบ EXP ของเลเวลนั้นจะแสดง **MAX** และหยุดสะสม ส่วนเลเวลอีกประเภทจะสะสมต่อจนถึงเพดานของตัวเอง
+
 เริ่มตัวละครใหม่ได้จาก **B → รีเซ็ตตัวละคร → เริ่มใหม่** การเริ่มใหม่จะคืนเลเวล สเตตัส สกิล เควสต์ และไอเทมเป็นค่าเริ่มต้น
 
 | ปุ่ม | การควบคุม |
@@ -70,6 +86,7 @@
 | K | เปิดหน้าต่างสกิลและจัดช่องลัด |
 | คลิก NPC / ประตู หรือ F เมื่ออยู่ใกล้ | พูดคุยหรือเปลี่ยนเขต |
 | V / C / B | กระเป๋า / สมุดภารกิจ / สถานะตัวละคร |
+| E | หน้าสวมใส่และช่องการ์ด |
 | ลูกกลิ้ง | ซูมกล้อง |
 | Esc / F11 | เปิดตั้งค่าหรือปิดหน้าต่าง / เต็มจอ |
 
@@ -78,6 +95,66 @@
 ดูรหัส ขั้นตอน และผลที่คาดหวังใน [Test Case](tests/TEST-CASES.md) ชุดอัตโนมัติรันด้วย `node --test tests/game.test.cjs`
 
 ## ภาพต้นฉบับ
+
+- `assets/tha-kham-harbor.png` ฉากท่าเรือท่าข้าม สร้างด้วย ImageGen แบบในตัว
+- `assets/nipa-landing.png` ฉากจุดขึ้นลงเรือป่าจากน้ำกร่อย สร้างด้วย ImageGen แบบในตัว
+- `assets/nipa-return-sign.png` ป้ายไม้เรือกลับท่าข้าม สร้างด้วย ImageGen แบบในตัว
+- `assets/chalawan-boss.png` สไปรต์ชาละวันพื้นโปร่งใส สร้างด้วย ImageGen แบบในตัว
+- `assets/effects/chalawan-tail-sweep/sheet.png` เอฟเฟกต์คลื่นน้ำฟาดหาง 8 เฟรม เรียงซ้ายไปขวาในตาราง 4 คอลัมน์ 2 แถว
+- `assets/harbor-crate.png`, `assets/pret-ash.png`, `assets/river-lord-armor.png`, `assets/chalawan-card.png` ภาพหีบ ไอคอนเถ้า เกราะ และการ์ด
+
+<details>
+<summary>พรอมป์ ImageGen ของเอฟเฟกต์และไอเทมชาละวัน</summary>
+
+**ฟาดหาง**
+
+> Use case: stylized-concept. Asset type: eight-frame transparent RPG visual-effect sprite sheet for a giant Siamese crocodile's tail sweep. Draw WATER ONLY, no creature. 4 columns by 2 rows, with all EIGHT frames isolated inside equal square cells exactly at horizontal centers 12.5%, 37.5%, 62.5%, 87.5% and vertical centers 25%, 75%. Equal transparent padding at least 10% on each cell edge to avoid intersections. Each frame has its flattened ground ellipse centered horizontally and at 60% of its cell height. Animation in row-major reading order: F1 slender short curved teal wake at initiation; F2 rising half-loop jade wave with pale foam tips; F3 bright broad crest sweeping in a 3/4 flat elliptical arc; F4 maximum-energy aquamarine water crescent with gold flecks and a few droplets; F5 broad full broken elliptical ring and lower spray; F6 smaller scattered foam and golden dust near ground; F7 two faint low trailing wake segments with some droplets; F8 a sparse fading low trace of foam with widely separated small teal dots. Camera looks down at a fixed 3/4 angle, elliptical arc very wide horizontally. Hard edged hand-clustered retro 32-bit pixel art, golden-wharf reflections and pale ivory blue highlights. Landscape canvas exactly 2:1 overall aspect if supported. Transparent alpha background in every cell. No captions, watermarks, grid marks, gutters with fill, text, panel borders, weapon, character, upright whirlpool, background or ground.
+
+**หีบสินค้า**
+
+> Use case: stylized-concept. Asset type: one isolated quest prop for the original Ayothaya Survival game. Render a battered square teak cargo crate bound by two bands of pale hemp rope, with aged golden brass corner plates, deep seams between the boards, warm reddish timber, and a tiny teal cargo seal on the front. Three-quarter top-down RPG camera with the lid and two faces visible, roughly cubic silhouette readable at 32 px. Draw in crisp warm hand-clustered 32-bit pixel art with dark brown outlines. Center a single crate filling nearly the entire square frame, with a small margin. Transparent alpha background. No text, ground, shadow outside silhouette, scenery or extra objects.
+
+**เถ้าอาคมผีเปรต**
+
+> Use case: stylized-concept. Asset type: one isolated inventory icon for the original Ayothaya Survival game. A squat dark terracotta funerary censer with engraved brass Thai lotus edging, filled with violet-black enchanted ash and a short wisp of orchid-purple spirit smoke shaped like near-vertical flame; a few pinpoint lavender embers close to the bowl. Read clearly at 42 pixels inside an amber-brown RPG inventory, hard-edged hand-clustered 32-bit pixel art, directional highlights, deep outline. Centered single object with a close crop and transparent alpha background. No lettering, plate behind it, border, other objects or cast shadow.
+
+**เกราะหนังเจ้าแห่งลุ่มแม่น้ำ**
+
+> Use case: stylized-concept. Asset type: one isolated wearable torso armor inventory icon for the original Ayothaya Survival game. A sleeveless Thai river champion cuirass constructed from dark moss-green crocodile hide and overlapping bronze-tipped scale panels, fitted reddish-brown leather straps, engraved brass shoulder trim and a small deep green stone at the chest. A compact recognizable armor silhouette in three-quarter view as if shown without a wearer, hard-edged hand-clustered 32-bit pixel art, golden glints, strong dark outline, legible at 44px. Single object centered close in square canvas on transparent alpha. No character, limbs, text, ground, cast shadow or extra objects.
+
+**การ์ดชาละวัน**
+
+> Use case: stylized-concept. Asset type: one isolated original collectible RPG inventory card icon for Ayothaya Survival. A mostly upright worn rectangular teal-and-antique-gold card with small Thai lotus filigree corners and the portrait of a snarling huge golden-eyed olive Siamese crocodile with its long snout pointing right. Crocodile teeth and crimson droplet motif inset into the card border near bottom. Warm hard-edged 32-bit pixel art, high contrast, legible at 44px. Square canvas with one object centered and closely framed, transparent alpha outside card, tiny margin. No type, words, watermark, playing card numbers, extra objects or ground.
+
+</details>
+
+<details>
+<summary>พรอมป์สไปรต์ชาละวัน</summary>
+
+> Use case: stylized-concept. Asset type: isolated transparent monster game sprite for the original Ayothaya Survival game. Draw Chalawan, a gigantic squat Siamese river crocodile boss with broad long crocodilian snout, parted jaw and ivory teeth, mossy dark olive and bronze armored back scales, pale khaki underside, one amber eye and a muscular curved tail. Four planted short legs, proud threatening pose. True hard-edged hand-clustered 32-bit pixel art with strong dark outlines and warm late-afternoon golden rim light matching a historical Thai wharf tileset. Fixed elevated three-quarter RPG game camera looking down around 45 degrees; side-oriented head points RIGHT and chest slightly toward camera, with the whole silhouette clear at 120 pixels wide. Landscape composition, a single centered full-body silhouette fills the frame with small transparent margin all around. Render a genuinely transparent background with alpha. No shadow, ground, water, motion effects, scene, words, blood, other figures or extra limbs.
+
+</details>
+
+<details>
+<summary>พรอมป์ฉากป่าจากน้ำกร่อย</summary>
+
+> Use case: stylized-concept. Create a distinct, wide 16:9 full-bleed playable background for the original Ayothaya Survival RPG, depicting the ferry landing at Pa Chak Nam Kroy, a brackish nipa-palm forest near historical Ayutthaya. The supplied Thai harbor screenshot is a style reference only. Use detailed hand-clustered 32-bit pixel art, crisp outlines and tightly grouped pixel color, fixed elevated three-quarter view angled down about 55 degrees, late afternoon gold, dark jade mangroves and bright lime nipa fans, teal tidal river with visible ripples, ochre earthen paths and warm old timber. The top third is a gently winding tidal channel, fringed by dense nipa palms and mangrove roots. At the upper center, approximately x=48% of the canvas, y=37% to 49%, build a small rustic Thai wooden ferry dock with a tied long wooden canoe in the water and a short plank ramp whose FOOT opens directly onto broad dry land at x=48%, y=49%. Put ferry huts, poles and pots beside the dock, never in the clearing. The entire rectangle x=24% to 88%, y=49% to 87% is contiguous unobstructed dry ochre earth and short grass, a spacious, visibly walkable landing, with a thin branching dirt path leading right into the nipa grove. At the very edges rich fern clusters, nipa palms, warm roots and occasional broken brick, with restrained glints in the water. This is an uninhabited landing and quieter than Tha Kham, with an unmistakable brackish nipa landscape. No sky, horizon, characters, animals, enemies, signage, letters, interface, grid, beams, borders or watermark. Fully opaque polished environment artwork.
+
+</details>
+
+<details>
+<summary>พรอมป์ป้ายเรือกลับท่าข้าม</summary>
+
+> undefined
+
+</details>
+
+<details>
+<summary>พรอมป์ฉากท่าเรือท่าข้าม</summary>
+
+> Use case: stylized-concept. Create a new complete full-bleed wide playable environment background for the original game Ayothaya Survival, depicting Tha Kham river harbor (a historical Ayutthaya-era Siamese ferry landing). Highly detailed hand-clustered 32-bit pixel art, fixed three-quarter top-down game camera looking down about 55 degrees, strongly defined pixel edges, consistent scale, no sky, no horizon. Warm golden late-afternoon light over terracotta dirt, evergreen and ochre grass, teal water, teak timber and warm red brick. Maintain a very broad unobstructed earthen public landing in the middle and foreground. The rectangle x=16% to 86%, y=48% to 87% is continuous flat passable dry ground, some wheel tracks and sparse grass only. At the left edge place a small old Ayutthaya brick gateway with a pointed cream-edged arch centered near x=11% of the frame, the foot of its doorway near y=65%. The old gate opens directly onto the same broad clear ground and has a clean dark arch opening for the game to overlay its own portal effect. At the upper edge beyond the playable rectangle show teal river water, moored old Siamese wooden boats, docks, bamboo pilings, stilted timber ferry sheds with sharply peaked Thai gables, and trees. Put any big crates, baskets, and market structures along the far upper or far right edges. Visually distinguish the riverfront from a forest or temple map. No characters, no ghosts, no foreground props in the playable area, no lettering, watermark, interface, border, portals, or beams of light. The art itself is the background texture.
+
+</details>
 
 - `assets/effects/pret-slam/sheet.png` สไปรต์ชีตท่าทุบพื้นของผีเปรต 9 เฟรม สร้างด้วย ImageGen แบบในตัว
 

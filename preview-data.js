@@ -1,4 +1,4 @@
-/* Source crops use the original concept sheets without modifying their pixels. */
+/* Source crops reference the original game sprites and concept sheets. */
 (() => {
   "use strict";
 
@@ -7,7 +7,12 @@
     npc: { src: "assets/concepts/npc-concepts.png", sheet: [1774, 887] },
     monster: { src: "assets/concepts/monster-concepts.png", sheet: [1312, 1199] },
   };
-  const pretSlam = window.AyothayaGame.pretSlam;
+  const { pretSlam, chalawan } = window.AyothayaGame;
+  const guardianArt = {
+    style: "guardian", rect: [474, 423, 820, 746],
+    clip: [[0.03, 0], [1, 0], [1, 1], [0, 1], [0, 0.62], [0.03, 0.46]],
+    height: 1.2, anchor: [0.51, 0.992],
+  };
 
   const actors = [
     {
@@ -46,7 +51,7 @@
       motions: ["idle", "hop", "attack", "hurt", "fall"],
     },
     {
-      id: "monkey", name: "ลิงป่า", role: "มอนสเตอร์ Lv. 2", group: "monster", style: "monkey",
+      id: "monkey", name: "ลิงป่า", role: "มอนสเตอร์ Lv. 1–2", group: "monster", style: "monkey",
       rect: [628, 6, 543, 408], height: 0.65, anchor: [0.48, 0.981],
       motions: ["idle", "walk", "hop", "attack", "hurt", "fall"],
     },
@@ -58,16 +63,29 @@
       motions: ["idle", "cast", "hurt", "fall"],
     },
     {
-      id: "stone-guardian", name: "ยักษ์ศิลา", role: "มอนสเตอร์ Lv. 5", group: "monster", style: "guardian",
-      rect: [474, 423, 820, 746], clip: [[0.03, 0], [1, 0], [1, 1], [0, 1], [0, 0.62], [0.03, 0.46]],
-      height: 1.2, anchor: [0.51, 0.992],
+      ...guardianArt, id: "stone-guardian", name: "ยักษ์ศิลา", role: "มอนสเตอร์ Lv. 5", group: "monster",
       motions: ["idle", "walk", "attack", "guard", "roar", "hurt", "fall"],
+    },
+    {
+      id: "grave-spirit", name: "วิญญาณเฝ้าหลุม", role: "มอนสเตอร์ป่าช้าวัดร้าง Lv. 12", group: "monster",
+      style: "spirit", src: "assets/sprites.png", sheet: [384, 192], rect: [288, 96, 96, 96],
+      height: .9, anchor: [.5, 86 / 96], motions: ["idle", "walk", "attack", "hurt", "fall"],
+    },
+    {
+      ...guardianArt, id: "grave-guardian", name: "อารักษ์ป่าช้า", role: "มอนสเตอร์ป่าช้าวัดร้าง Lv. 16", group: "monster",
+      motions: ["idle", "walk", "attack", "hurt", "fall"],
     },
     {
       id: "pret-boss", name: "ผีเปรต", role: "บอสป่าช้าวัดร้าง Lv. 24", group: "monster",
       src: "assets/pret-boss.png", sheet: [1024, 1536], rect: [0, 0, 1024, 1536],
       height: 1.2, anchor: [0.43, 1],
       motions: ["idle", "walk", "attack", "pret-slam", "hurt", "fall"],
+    },
+    {
+      id: "chalawan", name: "ชาละวัน", role: "บอสท่าเรือท่าข้าม Lv. 34", group: "monster",
+      src: "assets/chalawan-boss.png", sheet: [1774, 887], rect: [0, 0, 1774, 887],
+      height: .86, anchor: [.5, 1],
+      motions: ["idle", "walk", "chalawan-bite", "chalawan-entrance", "tail-sweep", "hurt", "chalawan-fall"],
     },
   ].map((actor) => ({ ...sheets[actor.group], ...actor }));
 
@@ -85,6 +103,15 @@
     "pret-slam": { id: "pret-slam", name: "ทุบพื้น",
       description: "สไปรต์ชีต 9 เฟรม · แรงกระแทก รอยแตก และฝุ่น · สตัน " + pretSlam.stunTime + " วิ.",
       duration: pretSlam.windup + pretSlam.recovery + .42, loop: true },
+    "chalawan-bite": { id: "chalawan-bite", name: "กัดปกติ",
+      description: "กัดโดนทำให้เลือดไหล 100% นาน " + chalawan.bleedDuration + " วิ.", duration: chalawan.biteDuration, loop: false },
+    "chalawan-entrance": { id: "chalawan-entrance", name: "กระโจนจากน้ำ",
+      description: "ชาละวันพุ่งจากผิวน้ำและลงกลางลาน", duration: chalawan.entranceDuration, loop: false },
+    "tail-sweep": { id: "tail-sweep", name: "ฟาดหาง",
+      description: "วงเตือนก่อนฟาดหาง · สไปรต์ชีตคลื่นน้ำ 8 เฟรม",
+      duration: chalawan.slam.windup + chalawan.slam.recovery + .42, loop: true },
+    "chalawan-fall": { id: "chalawan-fall", name: "ล้มลง",
+      description: "หัวค่อย ๆ ตกและลำตัวทรุดแนบพื้น", duration: chalawan.collapseDuration, loop: false },
     cast: { id: "cast", name: "ร่ายสกิล", description: "รวบรวมพลังและปล่อยเอฟเฟกต์สกิล", duration: 1.4, loop: false },
     hurt: { id: "hurt", name: "ถูกโจมตี", description: "ชะงักและถอยจากแรงปะทะ", duration: 0.64, loop: false },
     fall: { id: "fall", name: "ล้มลง", description: "เสียหลักและจบท่าที่พื้น", duration: 1.2, loop: false },

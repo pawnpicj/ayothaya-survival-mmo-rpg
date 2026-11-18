@@ -12,8 +12,11 @@
   const groupButtons = [...document.querySelectorAll("[data-group]")];
   const groundButtons = [...document.querySelectorAll("[data-ground]")];
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const { pretSlam, chalawan } = window.AyothayaGame;
   const effectStarts = { heavy: .225, sweep: .26, "guard-skill": .62, heal: .30, dash: .24, thrust: .22,
-    interrupt: .22, "pret-slam": window.AyothayaGame.pretSlam.windup + .13 };
+    interrupt: .22, "pret-slam": pretSlam.windup + .13,
+    "chalawan-entrance": chalawan.entranceDuration / 2, "tail-sweep": chalawan.slam.windup + .1,
+    "chalawan-fall": chalawan.collapseDuration * .72 };
   const stepSize = () => Object.hasOwn(effectStarts, motion.id) ? 1 / 60 : 1 / 24;
   const timeString = (value) => value.toFixed(2) + " วิ";
   const timelineMax = Number(timeline.max);
