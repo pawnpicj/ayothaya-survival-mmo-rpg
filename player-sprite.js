@@ -10,7 +10,7 @@
     s: { column: 0, shoulder: [37,45], grip: [33,62], idleArm: .08,
       arm: [[34,43],[39,44],[40,49],[37,55],[36,59],[37,63],[34,65],[28,65],[27,59],[29,52]],
       oldBlade: [[55,61],[60,61],[63,65],[66,75],[62,77],[59,72],[57,66]], mirror: true },
-    w: { column: 1, shoulder: [40,48], armSource: 'e', idleArm: .47,
+    w: { column: 1, shoulder: [40,49], armSource: 'e', idleArm: .28,
       oldBlade: [[43,61],[47,61],[49,64],[51,69],[55,74],[52,77],[48,73],[45,67]] },
     e: { column: 2, shoulder: [44,46], grip: [44,65], idleArm: -.22,
       arm: [[41,44],[48,45],[50,48],[49,53],[47,57],[47,61],[50,63],[49,67],[45,69],[40,68],[38,61],[38,53]],
@@ -21,9 +21,11 @@
       oldBlade: [[40,60],[44,61],[42,66],[39,74],[35,74],[36,69],[37,63]], mirror: true },
   };
   // Diagonals use the matching side view with their own sword angle.
+  const sideIdle = { ne: .48, e: .59, se: .68 };
   const VIEWS = {
-    s: ['s', 2.49, -1], sw: ['w', 2.46, -1], w: ['w', 2.62, -1], nw: ['w', 2.78, -1],
-    n: ['n', .60, 1], ne: ['e', .48, 1], e: ['e', .59, 1], se: ['e', .68, 1],
+    s: ['s', 2.49, -1], sw: ['w', Math.PI - sideIdle.se, -1],
+    w: ['w', Math.PI - sideIdle.e, -1], nw: ['w', Math.PI - sideIdle.ne, -1],
+    n: ['n', .60, 1], ne: ['e', sideIdle.ne, 1], e: ['e', sideIdle.e, 1], se: ['e', sideIdle.se, 1],
   };
   const BLADES = {
     rusty_sword: { length: 27, profile: [[3,-2],[20,-2],[27,-4],[24,1],[18,3],[3,3]],
@@ -97,11 +99,12 @@
     return { body, arm };
   }
 
-  function bladeAngle(idle, aim, swingDirection, progress) {
+  function bladeAngle(idle, aim, swingDirection, progress, style) {
     const windEnd = .23;
     const followEnd = .59;
-    const wind = aim - swingDirection * 1.65;
-    const follow = aim + swingDirection * .95;
+    const thrust = style === 'dash' || style === 'thrust';
+    const wind = aim - swingDirection * (thrust ? .46 : 1.65);
+    const follow = aim + swingDirection * (thrust ? .12 : .95);
     if (progress < windEnd) return turn(idle, wind, progress / windEnd);
     if (progress < strikePhase) return turn(wind, aim, (progress - windEnd) / (strikePhase - windEnd));
     if (progress < followEnd) return turn(aim, follow, (progress - strikePhase) / (followEnd - strikePhase));
@@ -170,7 +173,7 @@
     const scene = canvas.getContext('2d');
     scene.imageSmoothingEnabled = false;
 
-    return function draw(ctx, actor, { dir, bearing, walking, phase, progress, size, heavyEffect }) {
+    return function draw(ctx, actor, { dir, bearing, walking, phase, progress, size, heavyEffect, piercingEffect }) {
       const [view, idle, swingDirection] = VIEWS[dir] ?? VIEWS.s;
       const stance = BODY[view];
       const source = BODY[stance.armSource ?? view];
@@ -179,10 +182,12 @@
       const blade = BLADES[actor.equipment?.weapon ?? actor.weapon] ?? BLADES.rusty_sword;
       const swinging = progress !== null;
       const useHeavySprite = swinging && actor.attackStyle === 'heavy' && heavyEffect?.ready;
+      const usePiercingSprite = swinging && piercingEffect?.ready;
       const walk = walking && !swinging ? Math.sin(phase * .5) : 0;
-      const angle = swinging ? bladeAngle(idle, bearing, swingDirection, progress) : idle - walk * .10;
+      const walkSwing = view === 'w' ? -walk : walk;
+      const angle = swinging ? bladeAngle(idle, bearing, swingDirection, progress, actor.attackStyle) : idle - walkSwing * .10;
       const lift = clamp(Math.sin(angle - idle), -.8, .8);
-      const armTurn = (stance.idleArm ?? 0) + (swinging ? lift : walk * .15);
+      const armTurn = (stance.idleArm ?? 0) + (swinging ? lift : walkSwing * .15);
       const [shoulderX, shoulderY] = source.shoulder;
       const [gripX, gripY] = source.grip;
       scene.clearRect(0, 0, SIZE, SIZE);
@@ -195,7 +200,7 @@
         scene.rotate(armTurn);
         scene.translate(gripX - shoulderX, gripY - shoulderY);
         const swordTurn = angle - armTurn;
-        drawBlade(scene, blade, swordTurn, useHeavySprite ? null : progress, swingDirection, actor.attackStyle);
+        drawBlade(scene, blade, swordTurn, useHeavySprite || usePiercingSprite ? null : progress, swingDirection, actor.attackStyle);
         scene.drawImage(arm, -gripX, -gripY);
         drawGrip(scene, swordTurn, swingDirection);
         scene.restore();

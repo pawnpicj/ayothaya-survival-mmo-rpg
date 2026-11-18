@@ -12,7 +12,7 @@ const saveKey = 'ayothaya-survival-v1';
 const villageComplete = { status: 'completed', count: 3 };
 const ruinsComplete = { status: 'completed', counts: { ghost: 10, guardian: 5 } };
 const trainedPlayer = {
-  level: 9, jobLevel: 8, hp: 142, mp: 120, statPoints: 14,
+  level: 30, jobLevel: 8, hp: 142, mp: 120, statPoints: 14,
   stats: { STR: 8, AGI: 7, VIT: 7, INT: 9, DEX: 7, LUK: 5 },
 };
 
@@ -111,13 +111,25 @@ test('TC-QUEST-01 | Village quest, combat rewards and level progression', () => 
   assert.equal(state.quest.count, 3);
   assert.equal(state.player.inventory.monkey_claw, 3);
   assert.equal(state.player.inventory.bronze_sword, 1);
-  assert.equal(state.player.gold, 12 + 3 * 5 + 35);
+  assert.equal(state.player.gold, 12 + 3 * 2 + 17);
   assert.equal(state.player.level, 2);
   assert.equal(state.player.jobLevel, 2);
+  assert.deepEqual([state.quest.rewards.xp, state.quest.rewards.jobXp], [29, 14]);
+  assert.deepEqual([state.player.xp, state.player.jobXp], [23, 5]);
   const gold = state.player.gold;
   talk(game, 'elder');
   assert.equal(state.player.gold, gold, 'The quest reward should be granted once');
   assert.equal(state.player.inventory.bronze_sword, 1);
+});
+
+test('TC-EXP-01 | Monster EXP pays 70% from a gap of 10 and stops from a gap of 15', () => {
+  for (const [level, xp, jobXp] of [[10, 14, 7], [11, 10, 5], [15, 10, 5], [16, 0, 0]]) {
+    const game = arena([['village_monkey', 806, 610]], { level, jobLevel: 30 });
+    defeat(game, 'village_monkey');
+    assert.deepEqual([game.state.player.xp, game.state.player.jobXp], [xp, jobXp]);
+    assert.equal(game.state.player.gold, 14);
+    assert.equal(game.state.player.inventory.monkey_claw, 1);
+  }
 });
 
 test('TC-MOVE-01 | Direction, speed and stopping for eight movement inputs', () => {
@@ -259,7 +271,7 @@ test('TC-QUEST-02 | Ruins quest counts two species independently and creatures r
   assert.equal(state.zoneInfo.innerGate.open, false);
 });
 
-test('TC-GATE-02 | Ruins arch blocks movement until turn-in and stays open after reload', () => {
+test('TC-GATE-02 | The ruins arch opens the cemetery after turn-in and allows round trips', () => {
   const game = fixture({
     zone: 'ruins', quest: villageComplete, ruinsQuest: { ...ruinsComplete, status: 'ready' },
     player: { x: 1360, y: 192, level: 10, stats: { VIT: 9 } },
@@ -273,15 +285,193 @@ test('TC-GATE-02 | Ruins arch blocks movement until turn-in and stays open after
   talk(game, 'ruins-guard');
   assert.equal(state.ruinsQuest.status, 'completed');
   assert.ok(gate.open);
+  assert.equal(gate.name, 'ป่าช้าวัดร้าง');
   assert.ok(game.interact(gate.id));
-  advanceUntil(game, () => state.player.y === gate.exitY, 'Should walk through the open arch');
+  advanceUntil(game, () => state.zone === 'cemetery', 'Should walk through the arch into the cemetery');
+  assert.equal(state.cemeteryHunt.count, 0);
+  assert.equal(state.enemies.length, 14);
+  assert.ok(!state.enemies.some(enemy => enemy.boss));
   const restored = create({ storage: memoryStorage(game.exportSave()) });
+  assert.equal(restored.state.zone, 'cemetery');
+  assert.ok(restored.interact('cemetery-exit'));
+  advanceUntil(restored, () => restored.state.zone === 'ruins', 'Cemetery exit should return to ruins');
   assert.ok(restored.state.zoneInfo.innerGate.open);
-  assert.equal(restored.state.player.y, gate.exitY);
+  assert.ok(restored.state.player.y > gate.y + gate.reach);
+  tick(restored, 26, { x: 0, y: -1 });
+  assert.equal(restored.state.zone, 'cemetery', 'Keyboard walking should enter the cemetery');
+});
+
+test('TC-CEM-01 | Cemetery progress is saved and the hundredth kill spawns one repeatable Pret boss', () => {
+  const game = fixture({
+    zone: 'cemetery', quest: villageComplete, ruinsQuest: ruinsComplete, cemeteryKills: 98,
+    player: { x: 405, y: 390, level: 30, stats: { STR: 720, VIT: 25 } },
+  });
+  defeat(game, 'grave_spirit');
+  assert.equal(game.state.cemeteryHunt.count, 99);
+  assert.ok(!game.state.enemies.some(enemy => enemy.boss));
+
+  const restored = create({ storage: memoryStorage(game.exportSave()) });
+  assert.equal(restored.state.cemeteryHunt.count, 99);
+  defeat(restored, 'grave_spirit');
+  const { state } = restored;
+  assert.equal(state.cemeteryHunt.count, 100);
+  assert.equal(state.trackedQuest, state.cemeteryHunt);
+  const [boss] = state.enemies.filter(enemy => enemy.boss);
+  assert.equal(boss.name, 'ผีเปรต');
+  assert.deepEqual([boss.x, boss.y], [1075, 365]);
+  assert.equal(state.enemies.length, 1);
+
+  let now = Date.now();
+  sandbox.Date = { now: () => now };
+  try {
+    const reloaded = create({ storage: memoryStorage(restored.exportSave()) });
+    assert.equal(reloaded.state.enemies.length, 1);
+    assert.ok(reloaded.state.enemies[0].boss);
+    Object.assign(reloaded.state.player, { x: 980, y: 365 });
+    defeat(reloaded, 'pret');
+    assert.equal(reloaded.state.cemeteryHunt.count, 0);
+    assert.equal(reloaded.state.cemeteryHunt.respawnAt, now + 10000);
+    assert.equal(reloaded.state.player.inventory.pret_ash, 1);
+    assert.ok(reloaded.state.enemies.every(enemy => enemy.hp === 0));
+    now += 9999;
+    const waiting = create({ storage: memoryStorage(reloaded.exportSave()) });
+    tick(waiting);
+    assert.equal(waiting.state.enemies.length, 0);
+    assert.equal(waiting.state.cemeteryHunt.respawnAt, now + 1);
+    now++;
+    tick(waiting);
+    assert.equal(waiting.state.enemies.length, 14);
+    assert.ok(waiting.state.enemies.every(enemy => !enemy.boss && enemy.hp === enemy.maxHp));
+    defeat(waiting, 'grave_spirit');
+    assert.equal(waiting.state.cemeteryHunt.count, 1);
+  } finally {
+    delete sandbox.Date;
+  }
+});
+
+test('Cemetery round ends on the hundredth kill even during an area strike', () => {
+  const game = fixture({
+    zone: 'cemetery', quest: villageComplete, ruinsQuest: ruinsComplete, cemeteryKills: 99,
+    player: { ...trainedPlayer, x: 405, y: 390, stats: { ...trainedPlayer.stats, STR: 720 } },
+    enabledSkills: ['sweep'], skillSlots: ['sweep'],
+  });
+  const { player, enemies } = game.state;
+  Object.assign(enemies[1], { x: 450, y: 405 });
+  assert.ok(game.useSkill(1));
+  advanceUntil(game, () => game.state.enemies.some(enemy => enemy.boss), 'Sweep should trigger the boss round');
+  assert.equal(game.state.enemies.length, 1);
+  assert.equal(player.inventory.spirit_dust, 1);
+  assert.equal(player.gold, 12 + 13);
+});
+
+test('TC-CEM-02 | Pret card uses the boss drop rate of 0.025%', () => {
+  const random = sandbox.Math.random;
+  try {
+    for (const [roll, wins] of [[.000249, true], [.00025, false]]) {
+      const game = fixture({
+        zone: 'cemetery', quest: villageComplete, ruinsQuest: ruinsComplete, cemeteryKills: 100,
+        player: { x: 980, y: 365, level: 30, jobLevel: 30, stats: { STR: 720 } },
+      });
+      sandbox.Math.random = () => roll;
+      defeat(game, 'pret');
+      assert.equal(game.state.player.inventory.pret_card, wins ? 1 : undefined);
+      assert.equal(game.state.player.inventory.pret_ash, 1);
+      assert.equal(game.state.player.gold, 12 + 120);
+      assert.deepEqual([game.state.player.xp, game.state.player.jobXp], [705, 353]);
+    }
+  } finally {
+    sandbox.Math.random = random;
+  }
+});
+
+function pretEncounter(gap) {
+  return fixture({
+    zone: 'cemetery', quest: villageComplete, ruinsQuest: ruinsComplete, cemeteryKills: 100,
+    player: { ...trainedPlayer, x: 1075 - gap, y: 365 }, enabledSkills: ['guard', 'interrupt'],
+    skillSlots: ['guard', 'interrupt'],
+  });
+}
+
+test('Pret slam warns before hitting in all directions and stuns exactly 0.08 seconds', () => {
+  const game = pretEncounter(95);
+  const { player } = game.state;
+  const boss = game.state.enemies.find(enemy => enemy.boss);
+  const hits = [];
+  game.subscribe(event => { if (event.type === 'damage' && !event.enemy) hits.push(event); });
+  advanceUntil(game, () => boss.action === 'attack' && boss.attackStyle === 'pret-slam', 'Slam should start');
+  assert.ok(game.selectTarget(boss.id));
+  assert.ok(game.attack());
+  advanceUntil(game, () => boss.hp < boss.maxHp, 'An ordinary hit should land during the windup');
+  assert.equal(boss.action, 'attack', 'The ordinary hit should not cancel the slam');
+  assert.equal(hits.length, 0);
+  game.selectTarget(null);
+  player.x = boss.x + 160;
+  advanceUntil(game, () => hits.length === 1, 'Slam should hit at the edge behind the boss', 25);
+  assert.equal(hits[0].stunTime, .08);
+  assert.equal(player.stunTime, .08);
+  assert.equal(game.attack(), false);
+  assert.equal(game.useSkill(1), false);
+  const x = player.x;
+  tick(game, 1, { x: 1, y: 0 });
+  assert.equal(player.x, x);
+  game.update(.03, { x: 1, y: 0 });
+  assert.equal(player.x, x);
+  assert.equal(player.stunTime, 0);
+  assert.ok(game.useSkill(1));
+  tick(game, 1, { x: 1, y: 0 });
+  assert.ok(player.x > x);
+});
+
+test('Pret slam misses after the player leaves its warning ring and can be interrupted', () => {
+  const dodge = pretEncounter(90);
+  const boss = dodge.state.enemies.find(enemy => enemy.boss);
+  let impacts = 0;
+  dodge.subscribe(event => { if (event.type === 'boss-slam') impacts++; });
+  const { player } = dodge.state;
+  const hp = player.hp;
+  advanceUntil(dodge, () => boss.action === 'attack' && boss.attackStyle === 'pret-slam', 'Slam should start');
+  tick(dodge, 12, { x: -1, y: 0 });
+  assert.ok(boss.x - player.x > 160);
+  advanceUntil(dodge, () => impacts === 1, 'Slam should still resolve after the dodge', 20);
+  assert.equal(player.hp, hp);
+  assert.equal(player.stunTime, 0);
+
+  const interrupt = pretEncounter(40);
+  const target = interrupt.state.enemies.find(enemy => enemy.boss);
+  advanceUntil(interrupt, () => target.action === 'attack' && target.attackStyle === 'pret-slam', 'Slam should start');
+  assert.ok(interrupt.selectTarget(target.id));
+  assert.ok(interrupt.useSkill(2));
+  advanceUntil(interrupt, () => target.action === 'hit', 'Interrupt should stop the windup');
+  assert.equal(interrupt.state.player.stunTime, 0);
+});
+
+test('Pret basic hit rolls a 0.2% chance and blocks only 0.01 seconds of movement', () => {
+  const random = sandbox.Math.random;
+  try {
+    for (const [roll, stunTime] of [[.001999, .01], [.002, 0]]) {
+      const game = pretEncounter(35);
+      const { player } = game.state;
+      const boss = game.state.enemies.find(enemy => enemy.boss);
+      boss.slamCooldown = boss.slam.cooldown;
+      sandbox.Math.random = () => roll;
+      let hit;
+      game.subscribe(event => { if (event.type === 'damage' && !event.enemy) hit = event; });
+      advanceUntil(game, () => Boolean(hit), 'Pret should hit with a basic attack');
+      assert.equal(hit.stunTime, stunTime);
+      assert.equal(player.stunTime, stunTime);
+      const x = player.x;
+      game.update(.016, { x: -1, y: 0 });
+      const moveSpeed = 165 + (player.stats.AGI - 1) * 4;
+      assert.ok(Math.abs(x - player.x - (.016 - stunTime) * moveSpeed) < 1e-8);
+      assert.equal(player.stunTime, 0);
+    }
+  } finally {
+    sandbox.Math.random = random;
+  }
 });
 
 test('TC-ITEM-01 | Merchant restricts purchases, sells the scroll for 20 and buys loot', () => {
-  const game = create({ storage: memoryStorage() });
+  const game = fixture({ player: { level: 10 } });
   assert.equal(game.buyItem('town_scroll'), false);
   clearVillage(game);
   assert.ok(game.moveTo(795, 230));
@@ -296,14 +486,14 @@ test('TC-ITEM-01 | Merchant restricts purchases, sells the scroll for 20 and buy
   assert.equal(game.sellItem('bronze_sword'), false, 'Equipped sword cannot be sold');
   assert.ok(game.sellItem('monkey_claw'));
   assert.equal(player.inventory.monkey_claw, 2);
-  assert.equal(player.gold, gold - 20 + 7);
+  assert.equal(player.gold, gold - 20 + 3);
   const broke = fixture({ player: { x: 886, y: 110, gold: 19 } });
   assert.equal(broke.buyItem('town_scroll'), false);
   assert.equal(broke.state.player.gold, 19);
 });
 
 test('TC-ITEM-02 | Equip items and cards, swap shortcuts and keep bindings through saves', () => {
-  const game = fixture({ player: { hp: 80, inventory: { potion: 1, elixir: 2, bronze_sword: 1, monkey_card: 1, monkey_claw: 2 } } });
+  const game = fixture({ player: { level: 10, hp: 180, inventory: { potion: 1, elixir: 2, bronze_sword: 1, monkey_card: 1, monkey_claw: 2 } } });
   const { player } = game.state;
   assert.equal(game.assignItemSlot(1, 'monkey_claw'), false);
   assert.equal(game.assignItemSlot(3, 'potion'), false);
@@ -319,7 +509,7 @@ test('TC-ITEM-02 | Equip items and cards, swap shortcuts and keep bindings throu
   assert.ok(game.equipItem('bronze_sword'));
   assert.ok(game.equipItem('monkey_card'));
   assert.equal(player.attack, attack + 6 + 3);
-  assert.equal(player.maxHp, 112);
+  assert.equal(player.maxHp, 202);
   const restored = create({ storage: memoryStorage(game.exportSave()) });
   assert.equal(restored.state.itemSlots.join(','), 'elixir,potion');
   assert.equal(restored.state.player.equipment.card, 'monkey_card');
@@ -342,6 +532,64 @@ test('TC-ITEM-03 | Return scroll uses one item, turns Auto off and preserves que
   assert.equal(state.ruinsQuest.counts.ghost, 2);
   assert.ok(game.useItem('town_scroll'));
   assert.equal(game.useItem('town_scroll'), false);
+});
+
+test('Bronze sword requires Base Lv. 10, including equipment saved before the requirement', () => {
+  const equipment = { weapon: 'bronze_sword' };
+  const inventory = { bronze_sword: 1 };
+  const underLevel = fixture({ player: { level: 9, equipment, inventory } });
+  assert.equal(underLevel.state.player.inventory.bronze_sword, 1);
+  assert.equal(underLevel.state.player.equipment.weapon, 'rusty_sword');
+  assert.equal(underLevel.equipItem('bronze_sword'), false);
+  const eligible = fixture({ player: { level: 10, inventory } });
+  assert.ok(eligible.equipItem('bronze_sword'));
+  const restored = create({ storage: memoryStorage(eligible.exportSave()) });
+  assert.equal(restored.state.player.equipment.weapon, 'bronze_sword');
+});
+
+test('Discard removes the confirmed quantity, preserves equipped copies and clears empty shortcuts', () => {
+  const game = fixture({
+    player: { level: 10, inventory: { potion: 3, bronze_sword: 2 }, equipment: { weapon: 'bronze_sword' } },
+    itemSlots: ['potion', 'bronze_sword'],
+  });
+  const { inventory, equipment } = game.state.player;
+  for (const quantity of [0, -1, 1.5, 4]) assert.equal(game.discardItem('potion', quantity), false);
+  assert.equal(game.discardItem('missing', 1), false);
+  assert.equal(game.discardItem('rusty_sword', 1), false);
+  assert.equal(game.discardItem('bronze_sword', 2), false);
+  assert.ok(game.discardItem('bronze_sword', 1));
+  assert.equal(inventory.bronze_sword, 1);
+  assert.equal(equipment.weapon, 'bronze_sword');
+  assert.equal(game.state.itemSlots[1], 'bronze_sword');
+
+  assert.ok(game.discardItem('potion', 2));
+  assert.equal(inventory.potion, 1);
+  assert.equal(game.state.itemSlots[0], 'potion');
+  assert.ok(game.discardItem('potion', 1));
+  assert.equal(game.discardItem('potion', 1), false);
+  assert.equal(game.state.itemSlots[0], null);
+
+  const restored = create({ storage: memoryStorage(game.exportSave()) });
+  assert.equal(restored.state.player.inventory.potion, undefined);
+  assert.equal(restored.state.itemSlots[0], null);
+  assert.equal(restored.state.player.equipment.weapon, 'bronze_sword');
+});
+
+test('A monster card rolls once per kill at a fixed 0.01% even with high LUK', () => {
+  const random = sandbox.Math.random;
+  try {
+    for (const [roll, dropped] of [[.000099, true], [.0001, false], [.000249, false]]) {
+      const game = arena([['village_monkey', 806, 610]], { level: 10, stats: { LUK: 99 } });
+      const loot = [];
+      game.subscribe(event => { if (event.type === 'loot') loot.push(event.itemId); });
+      sandbox.Math.random = () => roll;
+      defeat(game, 'village_monkey');
+      assert.deepEqual(loot, dropped ? ['monkey_claw', 'monkey_card'] : ['monkey_claw']);
+      assert.equal(game.state.player.inventory.monkey_card, dropped ? 1 : undefined);
+    }
+  } finally {
+    sandbox.Math.random = random;
+  }
 });
 
 test('TC-STATS-01 | Draft points can be discarded and confirmation updates derived stats', () => {
@@ -376,7 +624,7 @@ test('TC-SKILL-01 | Requirements, activating Active and Passive skills, slot swa
   assert.ok(game.isSkillEnabled(game.state.skills.find((skill) => skill.id === 'sweep')));
 });
 
-test('TC-SKILL-02 | All three Passive skills affect damage, critical chance or mana', () => {
+test('TC-SKILL-02 | Mastery, Precision and Discipline affect damage, critical chance or mana', () => {
   function firstDamage(game) {
     let damage;
     game.subscribe((event) => {
@@ -390,9 +638,15 @@ test('TC-SKILL-02 | All three Passive skills affect damage, critical chance or m
 
   const enemies = [['guardian', 806, 610]];
   const baseline = arena(enemies, trainedPlayer);
+  const baselineDamage = firstDamage(baseline);
   const mastery = arena(enemies, trainedPlayer);
   assert.ok(mastery.enableSkill('mastery'));
-  assert.ok(firstDamage(mastery) > firstDamage(baseline));
+  assert.ok(firstDamage(mastery) > baselineDamage);
+  const lucky = arena(enemies, { ...trainedPlayer, stats: { ...trainedPlayer.stats, LUK: 90 } });
+  assert.equal(lucky.combatStats().critical, .8);
+  assert.ok(lucky.enableSkill('precision'));
+  assert.equal(lucky.combatStats().critical, .8);
+  assert.ok(firstDamage(lucky) > baselineDamage, 'A roll of .65 should critically hit at the 80% cap');
   const passives = arena([], { ...trainedPlayer, mp: 0 });
   const critical = passives.combatStats().critical;
   assert.ok(passives.enableSkill('precision'));
@@ -400,6 +654,66 @@ test('TC-SKILL-02 | All three Passive skills affect damage, critical chance or m
   assert.ok(passives.enableSkill('discipline'));
   tick(passives, 40);
   assert.equal(passives.state.player.mp, 2);
+});
+
+test('Active skills and the bleed passive unlock exactly at their required Base levels', () => {
+  const requirements = {
+    heavy: 10, sweep: 15, guard: 15, heal: 15, dash: 20, thrust: 25, interrupt: 30, bleed: 30,
+  };
+  for (const [id, level] of Object.entries(requirements)) {
+    const locked = fixture({ player: { ...trainedPlayer, level: level - 1 }, enabledSkills: [id], skillSlots: [id] });
+    const skill = [...locked.state.skills, ...locked.state.passiveSkills].find(entry => entry.id === id);
+    assert.equal(locked.enableSkill(id), false, id);
+    assert.equal(locked.isSkillEnabled(skill), false, id);
+    assert.equal(locked.useSkill(1), false, id);
+    const eligible = fixture({ player: { ...trainedPlayer, level } });
+    assert.ok(eligible.enableSkill(id), id);
+  }
+});
+
+test('Bleed passive rolls a 20% chance on a direct hit and produces three damage ticks', () => {
+  const random = sandbox.Math.random;
+  try {
+    for (const [enabled, roll, expectedTicks] of [[false, .15, 0], [true, .20, 0], [true, .19, 3]]) {
+      const game = fixture({ zone: 'training', player: { level: 30, x: 580, y: 505 } });
+      const [dummy] = game.state.enemies;
+      const events = [];
+      game.subscribe(event => { if (event.type === 'damage' && event.enemy) events.push(event); });
+      if (enabled) assert.ok(game.enableSkill('bleed'));
+      sandbox.Math.random = () => roll;
+      assert.ok(game.selectTarget(dummy.id));
+      assert.ok(game.attack());
+      advanceUntil(game, () => events.length === 1, 'Basic attack should hit once');
+      game.selectTarget(null);
+      tick(game, 64);
+      assert.equal(events.length, expectedTicks + 1);
+      assert.ok(events.slice(1).every(event => event.status === 'bleed' && event.value === Math.round(events[0].value * .15)));
+      assert.ok(!dummy.bleed);
+    }
+  } finally {
+    sandbox.Math.random = random;
+  }
+});
+
+test('TC-COMBAT-01 | Basic attack starts at 100 units and approaches from outside range', () => {
+  const edge = fixture({ zone: 'training', player: { x: 540, y: 505 } });
+  const [dummy] = edge.state.enemies;
+  assert.equal(edge.basicAttackRange, 100);
+  assert.ok(edge.selectTarget(dummy.id));
+  assert.ok(edge.attack());
+  tick(edge);
+  assert.equal(edge.state.player.action, 'attack');
+  assert.equal(edge.state.player.x, 540);
+  advanceUntil(edge, () => dummy.hp < dummy.maxHp, 'Basic attack should hit from 100 units');
+
+  const far = fixture({ zone: 'training', player: { x: 539, y: 505 } });
+  const [farDummy] = far.state.enemies;
+  assert.ok(far.selectTarget(farDummy.id));
+  assert.ok(far.attack());
+  tick(far);
+  assert.ok(far.state.player.x > 539);
+  assert.equal(farDummy.hp, farDummy.maxHp);
+  advanceUntil(far, () => farDummy.hp < farDummy.maxHp, 'Basic attack should connect after approaching');
 });
 
 test('TC-COMBAT-02 | All seven active skills, mana, cooldown, ranges and effects', () => {
@@ -410,7 +724,7 @@ test('TC-COMBAT-02 | All seven active skills, mana, cooldown, ranges and effects
     const { player, enemies: [first, second] } = game.state;
     const events = [];
     game.subscribe((event) => events.push(event));
-    const { x, hp, mp } = player;
+    const { hp, mp } = player;
     game.selectTarget(first.id);
     assert.ok(game.useSkill(1), id);
     assert.equal(player.mp, mp - game.getSlotSkill(1).cost, id + ' mana');
@@ -421,10 +735,14 @@ test('TC-COMBAT-02 | All seven active skills, mana, cooldown, ranges and effects
     else if (id === 'heal') assert.ok(player.hp > hp);
     else {
       assert.ok(first.hp < first.maxHp, id + ' should damage the target');
-      assert.ok(events.some((event) => event.type === 'skill-strike' && event.skill === id && event.contact));
+      const strike = events.find((event) => event.type === 'skill-strike' && event.skill === id);
+      assert.ok(strike?.contact);
       if (id === 'sweep') assert.ok(second.hp < second.maxHp);
-      if (id === 'dash') assert.ok(player.x - x > 100);
-      if (id === 'interrupt') assert.ok(first.cooldown > 0.8);
+      if (id === 'dash') {
+        assert.equal(strike.arrival.x, strike.contact.x + 30);
+        assert.equal(player.x, strike.arrival.x);
+      }
+      if (id === 'interrupt') assert.ok(first.slowTime > 3.5);
     }
   }
   const far = arena([['guardian', 866, 610]], trainedPlayer, { enabledSkills: ['heavy'], skillSlots: ['heavy'] });
@@ -434,6 +752,81 @@ test('TC-COMBAT-02 | All seven active skills, mana, cooldown, ranges and effects
   const emptyMana = arena([['guardian', 796, 610]], { ...trainedPlayer, mp: 0 }, { enabledSkills: ['heavy'], skillSlots: ['heavy'] });
   emptyMana.selectTarget(emptyMana.state.enemies[0].id);
   assert.equal(emptyMana.useSkill(1), false);
+
+  const sweep = arena([['guardian', 899, 610], ['guardian', 775, 485], ['guardian', 901, 610]], trainedPlayer,
+    { enabledSkills: ['sweep'], skillSlots: ['sweep'] });
+  const [inside, edge, outside] = sweep.state.enemies;
+  assert.ok(sweep.useSkill(1));
+  tick(sweep, 9);
+  assert.ok(inside.hp < inside.maxHp, 'Sweep should hit at 124 units');
+  assert.ok(edge.hp < edge.maxHp, 'Sweep should hit at 125 units');
+  assert.equal(outside.hp, outside.maxHp, 'Sweep should miss at 126 units');
+});
+
+test('Thrust applies three bleed ticks and a second thrust refreshes the timer', () => {
+  const game = fixture({
+    zone: 'training', trainingCooldowns: false, enabledSkills: ['thrust'], skillSlots: ['thrust'],
+    player: { ...trainedPlayer, x: 550, y: 505 },
+  });
+  const [target] = game.state.enemies;
+  const strikes = [];
+  const ticks = [];
+  game.subscribe(event => {
+    if (event.type !== 'damage') return;
+    if (event.skill === 'thrust') strikes.push(event.value);
+    if (event.status === 'bleed') ticks.push(event.value);
+  });
+
+  assert.ok(game.selectTarget(target.id));
+  assert.ok(game.useSkill(1));
+  advanceUntil(game, () => strikes.length === 1, 'Thrust should hit the target');
+  assert.ok(target.bleed);
+  tick(game, 19);
+  assert.equal(ticks.length, 0);
+  advanceUntil(game, () => ticks.length === 1, 'Bleed should tick after one second', 3);
+  assert.equal(ticks[0], Math.round(strikes[0] * .15));
+
+  tick(game, 8);
+  assert.ok(game.useSkill(1));
+  advanceUntil(game, () => strikes.length === 2, 'A second thrust should hit');
+  tick(game, 19);
+  assert.equal(ticks.length, 1, 'The second thrust should replace the previous timer');
+  advanceUntil(game, () => ticks.length === 4, 'Refreshed bleed should tick three times', 45);
+  assert.equal(target.bleed, null);
+  tick(game, 21);
+  assert.deepEqual(ticks.slice(1), Array(3).fill(Math.round(strikes[1] * .15)));
+  assert.equal(target.maxHp - target.hp, [...strikes, ...ticks].reduce((total, value) => total + value, 0));
+});
+
+test('A lethal bleed counts toward quests and awards loot once', () => {
+  const game = arena([['village_monkey', 865, 610]], { level: 25, stats: { DEX: 3 } },
+    { quest: { status: 'active', count: 0 }, enabledSkills: ['thrust'], skillSlots: ['thrust'] });
+  const { player, enemies: [target], quest } = game.state;
+  target.hp = target.maxHp = 100;
+  const gold = player.gold;
+  assert.ok(game.selectTarget(target.id));
+  assert.ok(game.useSkill(1));
+  advanceUntil(game, () => Boolean(target.bleed), 'The initial hit should leave the target alive');
+  assert.ok(target.hp > 0);
+  advanceUntil(game, () => target.hp === 0, 'Bleed should finish the target');
+  assert.equal(target.bleed, null);
+  tick(game, 65);
+  assert.equal(quest.count, 1);
+  assert.equal(player.gold, gold + 2);
+  assert.equal(player.inventory.monkey_claw, 1);
+});
+
+test('Dash lands before an obstacle behind the target and still deals damage', () => {
+  const zone = { ...village, obstacles: [{ x: 936, y: 570, w: 1, h: 90 }], enemies: [['guardian', 925, 610]] };
+  const game = fixture({ enabledSkills: ['dash'], skillSlots: ['dash'], player: { ...trainedPlayer, x: 775, y: 610 } },
+    { zones: { village: zone } });
+  const [target] = game.state.enemies;
+  assert.ok(game.selectTarget(target.id));
+  assert.ok(game.useSkill(1));
+  tick(game, 9);
+  assert.equal(game.state.player.x, 926);
+  assert.equal(game.state.player.y, 610);
+  assert.ok(target.hp < target.maxHp);
 });
 
 test('TC-COMBAT-03 | Death returns the player to town with progress intact', () => {
@@ -555,12 +948,38 @@ test('TC-MOB-04 | Interrupt cancels an attack, and a defeated monster disappears
   defeat(game, 'guardian');
   assert.equal(guardian.action, 'death');
   assert.equal(guardian.aggro, false);
+  assert.equal(guardian.slowTime, 0);
   tick(game, 12);
   assert.equal(guardian.visible, false);
   advanceUntil(game, () => guardian.hp === guardian.maxHp, 'Guardian should respawn with full health', 210);
   assert.equal(guardian.action, 'idle');
   assert.equal(guardian.visible, true);
   assert.deepEqual([guardian.x, guardian.y], [guardian.origin.x, guardian.origin.y]);
+});
+
+test('Interrupt reduces monster movement, attack recovery and windup for four seconds', () => {
+  const game = arena([['guardian', 835, 610]], trainedPlayer, { enabledSkills: ['interrupt'], skillSlots: ['interrupt'] });
+  const [guardian] = game.state.enemies;
+  assert.ok(game.selectTarget(guardian.id));
+  assert.ok(game.useSkill(1));
+  advanceUntil(game, () => guardian.slowTime > 0, 'Interrupt should apply slow');
+  const slowedAt = guardian.slowTime;
+  advanceUntil(game, () => guardian.moving, 'The slowed enemy should still chase');
+  const x = guardian.x;
+  const cooldown = guardian.cooldown;
+  tick(game);
+  assert.ok(Math.abs(x - guardian.x - 63 * .05 * .7) < 1e-6);
+  assert.ok(Math.abs(cooldown - guardian.cooldown - .05 * .7) < 1e-6);
+  advanceUntil(game, () => guardian.action === 'attack', 'Slowed monster should start an attack');
+  const windup = guardian.actionTime;
+  tick(game);
+  assert.ok(Math.abs(windup - guardian.actionTime - .05 * .7) < 1e-6);
+  assert.ok(slowedAt > 3.9);
+  advanceUntil(game, () => guardian.slowTime === 0, 'Slow should expire', 85);
+  advanceUntil(game, () => guardian.action === 'attack', 'Monster should attack again');
+  const normalWindup = guardian.actionTime;
+  tick(game);
+  assert.ok(Math.abs(normalWindup - guardian.actionTime - .05) < 1e-6);
 });
 
 test('TC-AUTO-01 | Near, medium and far search–range boundaries', () => {
@@ -619,6 +1038,19 @@ test('TC-AUTO-03 | Skill priority, pause, basic attack fallback and manual movem
   assert.ok(fallback.state.enemies[0].hp < fallback.state.enemies[0].maxHp);
 });
 
+test('Auto can practice Interrupt on stationary training dummies', () => {
+  const game = fixture({ zone: 'training', enabledSkills: ['interrupt'], player: { ...trainedPlayer, x: 580, y: 505 } });
+  let contact;
+  game.subscribe(event => {
+    if (event.type === 'skill-strike' && event.skill === 'interrupt') contact = event.contact;
+  });
+  game.configureAuto({ skillIds: ['interrupt'] });
+  game.setAuto(true);
+  advanceUntil(game, () => Boolean(contact), 'Auto should land Interrupt on a training dummy');
+  assert.equal(contact.x, game.state.enemies[0].x);
+  assert.equal(contact.y, game.state.enemies[0].y);
+});
+
 test('TC-SAVE-01 | Legacy and damaged saves, and incomplete ruins progress', () => {
   const oldSave = {
     version: 1, zone: 'ruins', quest: villageComplete,
@@ -648,10 +1080,12 @@ test('TC-SAVE-02 | Resetting levels and starting a new character have different 
     player: { ...trainedPlayer, inventory: { potion: 2, bronze_sword: 1 }, equipment: { weapon: 'bronze_sword' } },
   });
   const { state } = game;
+  assert.equal(state.player.equipment.weapon, 'bronze_sword');
   game.resetLevels();
   assert.deepEqual([state.player.level, state.player.jobLevel, state.player.xp, state.player.jobXp], [1, 1, 0, 0]);
   assert.equal(state.player.stats.STR, 8);
   assert.equal(state.player.inventory.bronze_sword, 1);
+  assert.equal(state.player.equipment.weapon, 'rusty_sword');
   assert.equal(game.useSkill(1), false);
   assert.equal(state.quest.status, 'completed');
   assert.ok(game.resetCharacter());
@@ -695,7 +1129,7 @@ test('TC-TRAIN-01 | The village gate leads to three stationary dummies and back'
 });
 
 test('TC-TRAIN-02 | Cooldown toggle and saved preference apply only in the yard', () => {
-  const game = fixture({ zone: 'training', enabledSkills: ['heavy'], skillSlots: ['heavy'], player: { x: 608, y: 505 } });
+  const game = fixture({ zone: 'training', enabledSkills: ['heavy'], skillSlots: ['heavy'], player: { level: 10, x: 608, y: 505 } });
   const { state } = game;
   assert.equal(state.zone, 'training');
   assert.equal(game.skillCooldownsEnabled(), true);
@@ -734,7 +1168,7 @@ test('TC-TRAIN-02 | Cooldown toggle and saved preference apply only in the yard'
 test('TC-TRAIN-03 | Mana toggle applies to manual and automatic skills in the yard', () => {
   const game = fixture({
     zone: 'training', trainingCooldowns: false, trainingManaCosts: undefined,
-    enabledSkills: ['heavy'], skillSlots: ['heavy'], player: { x: 608, y: 505, mp: 0 },
+    enabledSkills: ['heavy'], skillSlots: ['heavy'], player: { level: 10, x: 608, y: 505, mp: 0 },
   });
   const { state } = game;
   assert.equal(game.skillManaCostsEnabled(), true);
@@ -777,6 +1211,7 @@ test('TC-TRAIN-03 | Mana toggle applies to manual and automatic skills in the ya
 test('TC-TRAIN-04 | Each dummy refills five seconds after its latest hit', () => {
   const game = fixture({
     zone: 'training', trainingCooldowns: false, enabledSkills: ['heavy'], skillSlots: ['heavy'],
+    player: { level: 10 },
   });
   const { player, enemies: [first, second, third] } = game.state;
   const frame = 1 / 16;

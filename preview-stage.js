@@ -458,6 +458,14 @@
     const images = new Map();
     const heavy = window.AyothayaHeavyEffect;
     const heavyEffect = heavy?.create(requestDraw);
+    const sweepEffect = window.AyothayaSweepEffect?.create(requestDraw);
+    const guardEffect = window.AyothayaGuardEffect?.create(requestDraw);
+    const healEffect = window.AyothayaHealEffect?.create(requestDraw);
+    const interruptEffect = window.AyothayaInterruptEffect?.create(requestDraw);
+    const pretSlamEffect = window.AyothayaPretSlamEffect?.create(requestDraw);
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const piercing = window.AyothayaPiercingEffect;
+    const piercingEffects = { dash: piercing?.create('dash', requestDraw), thrust: piercing?.create('thrust', requestDraw) };
 
     function load(src) {
       if (images.has(src)) return images.get(src);
@@ -477,32 +485,175 @@
       return record;
     }
 
-    function drawHeavyPreview(record, actor, elapsed, width, height, groundY, zoom, palette) {
-      const unit = Math.min(height / 160, width / 240) * zoom;
-      const playerX = width / 2 - 22 * unit;
-      const targetX = width / 2 + 19 * unit;
-      const swingDuration = heavy?.previewSwingDuration ?? .46;
-      const progress = elapsed < swingDuration ? elapsed / swingDuration : null;
-      const [lean, lift] = progress === null ? BASE_POSE : poseFor('attack', progress, actorTraits(actor));
-      const sinceHit = elapsed - swingDuration * window.AyothayaGame.strikePhase;
+    function drawPracticeTarget(record, x, y, sinceHit, unit, palette, direction = 1) {
       const recoil = sinceHit >= 0 && sinceHit < .13 ? Math.sin(sinceHit / .13 * Math.PI) : 0;
       const targetSize = Math.round(58 * unit);
-      const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
-
-      paintShadow(ctx, playerX, groundY, 30 * unit, 48 * unit, 0, palette, 'idle', 0);
-      paintShadow(ctx, targetX, groundY, 30 * unit, 32 * unit, 0, palette, 'idle', 0);
+      paintShadow(ctx, x, y, 30 * unit, 32 * unit, 0, palette, 'idle', 0);
       ctx.save();
       ctx.imageSmoothingEnabled = false;
       if (recoil) ctx.filter = 'brightness(1.28)';
-      ctx.drawImage(record.image, 192, 96, 96, 96, Math.round(targetX - targetSize / 2 + 4 * unit * recoil),
-        Math.round(groundY - targetSize * 86 / 96), targetSize, targetSize);
-      ctx.filter = 'none';
+      ctx.drawImage(record.image, 192, 96, 96, 96, Math.round(x - targetSize / 2 + direction * 4 * unit * recoil),
+        Math.round(y - targetSize * 86 / 96), targetSize, targetSize);
+      ctx.restore();
+    }
+
+    function drawContactPreview(record, actor, skill, elapsed, width, height, groundY, zoom, palette) {
+      const interrupt = skill === 'interrupt';
+      const unit = Math.min(height / 160, width / 240) * zoom;
+      const playerX = width / 2 - 22 * unit;
+      const swingDuration = interrupt ? .36 : (heavy?.previewSwingDuration ?? .46);
+      const impactTime = swingDuration * window.AyothayaGame.strikePhase;
+      const approach = interrupt ? 9 * (1 - clamp(elapsed / impactTime, 0, 1)) : 0;
+      const targetX = width / 2 + (19 + approach) * unit;
+      const progress = elapsed < swingDuration ? elapsed / swingDuration : null;
+      const [lean, lift] = progress === null ? BASE_POSE : poseFor('attack', progress, actorTraits(actor));
+      const sinceHit = elapsed - impactTime;
+      const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
+
+      paintShadow(ctx, playerX, groundY, 30 * unit, 48 * unit, 0, palette, 'idle', 0);
+      drawPracticeTarget(record, targetX, groundY, sinceHit, unit, palette);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
       ctx.translate(Math.round(playerX + lean * 48 * unit), Math.round(groundY + lift * 48 * unit));
-      drawPlayer(ctx, { ...actor, attackStyle: 'heavy' }, {
+      drawPlayer(ctx, { ...actor, attackStyle: skill }, {
         dir: 'e', bearing: 0, walking: false, phase: 0, progress, size: 64 * unit, heavyEffect,
       });
       ctx.restore();
-      heavyEffect?.drawImpact(ctx, sinceHit, targetX, groundY - 23 * unit, unit);
+      const sprite = interrupt ? interruptEffect : heavyEffect;
+      sprite?.drawImpact(ctx, sinceHit, targetX, groundY - 23 * unit, unit);
+    }
+
+    function drawSweepPreview(record, actor, elapsed, width, height, groundY, zoom, palette) {
+      const unit = Math.min(Math.min(height / 170, width / 220) * zoom, height / 125, width / 170);
+      const x = width / 2;
+      const y = groundY - 15 * unit;
+      const centerY = y - 23 * unit;
+      const swingDuration = .43;
+      const progress = elapsed < swingDuration ? elapsed / swingDuration : null;
+      const sinceHit = elapsed - swingDuration * window.AyothayaGame.strikePhase;
+      const targets = [
+        { x: x + 38 * unit, y: y - 34 * unit, direction: 1 },
+        { x: x - 54 * unit, y: y + 4 * unit, direction: -1 },
+        { x: x + 55 * unit, y: y + 9 * unit, direction: 1 },
+      ];
+      const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
+
+      paintShadow(ctx, x, y, 30 * unit, 48 * unit, 0, palette, 'idle', 0);
+      sweepEffect?.draw(ctx, sinceHit, x, centerY, 68 * unit, 29 * unit, true);
+      const rear = targets[0];
+      drawPracticeTarget(record, rear.x, rear.y, sinceHit, unit, palette, rear.direction);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(Math.round(x), Math.round(y));
+      drawPlayer(ctx, { ...actor, attackStyle: 'sweep' }, {
+        dir: 'se', bearing: Math.PI / 4, walking: false, phase: 0, progress, size: 64 * unit,
+      });
+      ctx.restore();
+      for (const target of targets.slice(1)) drawPracticeTarget(record, target.x, target.y, sinceHit, unit, palette, target.direction);
+      sweepEffect?.draw(ctx, sinceHit, x, centerY, 68 * unit, 29 * unit, false);
+      for (const target of targets) heavyEffect?.drawImpact(ctx, sinceHit, target.x, target.y - 23 * unit, unit * .78);
+    }
+
+    function drawGuardPreview(record, actor, elapsed, width, height, groundY, zoom, palette) {
+      const unit = Math.min(height / 160, width / 220) * zoom;
+      const x = width / 2 - 23 * unit;
+      const sinceHit = elapsed - .56;
+      const rush = Math.max(0, 1 - Math.abs(sinceHit) / .19);
+      const recoil = sinceHit >= 0 && sinceHit < .16 ? Math.sin(Math.PI * sinceHit / .16) : 0;
+      const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
+
+      paintShadow(ctx, x, groundY, 30 * unit, 48 * unit, 0, palette, 'idle', 0);
+      guardEffect?.drawShield(ctx, elapsed, x, groundY - 27 * unit, unit, 1.05 - elapsed);
+      drawPracticeTarget(record, width / 2 + (37 - 14 * rush) * unit, groundY, -1, unit, palette);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(Math.round(x - 3 * recoil * unit), Math.round(groundY));
+      drawPlayer(ctx, actor, { dir: 'e', bearing: 0, walking: false, phase: 0, progress: null, size: 64 * unit });
+      ctx.restore();
+      guardEffect?.drawImpact(ctx, sinceHit, x + 26 * unit, groundY - 27 * unit, unit, false);
+    }
+
+    function drawHealPreview(record, actor, elapsed, width, height, groundY, zoom, palette) {
+      const unit = Math.min(height / 160, width / 220) * zoom;
+      const x = width / 2;
+      const lift = elapsed < .38 ? 2 * Math.sin(elapsed / .38 * Math.PI) * unit : 0;
+      const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
+
+      paintShadow(ctx, x, groundY, 30 * unit, 48 * unit, 0, palette, 'idle', 0);
+      healEffect?.draw(ctx, elapsed, x, groundY, unit);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(Math.round(x), Math.round(groundY - lift));
+      drawPlayer(ctx, actor, { dir: 's', bearing: Math.PI / 2, walking: false, phase: 0, progress: null, size: 64 * unit });
+      ctx.restore();
+    }
+
+    function drawPiercingPreview(record, actor, skill, elapsed, width, height, groundY, zoom, palette) {
+      const dash = skill === 'dash';
+      const sprite = piercingEffects[skill];
+      const unit = Math.min(Math.min(height / 166, width / 225) * zoom, height / 124, width / 200);
+      const startX = width / 2 - (dash ? 66 : 29) * unit;
+      const targetX = width / 2 + 28 * unit;
+      const arrivalX = dash ? targetX + window.AyothayaGame.dashOvershoot * unit : startX;
+      const duration = dash ? .42 : .36;
+      const sinceHit = elapsed - duration * window.AyothayaGame.strikePhase;
+      const progress = elapsed < duration ? elapsed / duration : null;
+      const playerX = sinceHit >= 0 ? arrivalX : startX;
+      const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
+      const trailY = groundY - (dash ? 23 : 15) * unit;
+
+      paintShadow(ctx, playerX, groundY, 30 * unit, 48 * unit, 0, palette, 'idle', 0);
+      sprite?.drawTrail(ctx, sinceHit, [startX, trailY], [dash ? arrivalX : targetX, trailY], unit);
+      drawPracticeTarget(record, targetX, groundY, sinceHit, unit, palette);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(Math.round(playerX), Math.round(groundY));
+      drawPlayer(ctx, { ...actor, attackStyle: skill }, {
+        dir: 'e', bearing: 0, walking: false, phase: 0, progress, size: 64 * unit, piercingEffect: sprite,
+      });
+      ctx.restore();
+      sprite?.drawImpact(ctx, sinceHit, [targetX, dash ? groundY - 19 * unit : trailY], 0, unit);
+    }
+
+    function drawPretSlamPreview(record, actor, elapsed, width, height, groundY, zoom, palette) {
+      const slam = window.AyothayaGame.pretSlam;
+      const unit = Math.min(width / 340, height / 240) * Math.min(zoom, 1.18);
+      const x = width / 2;
+      const y = groundY - 36 * unit;
+      const artHeight = 119 * unit;
+      const artWidth = artHeight * actor.rect[2] / actor.rect[3];
+      const project = (dx, dy, height = 0) => [x + dx * .80 * unit, y + (dy * .41 - height) * unit];
+      const { stretchX, stretchY } = pretSlamEffect.pose(slam, elapsed);
+      pretSlamEffect.ground(ctx, project, unit, slam, elapsed, reducedMotion.matches);
+      paintShadow(ctx, x, y, artWidth, artHeight, 0, palette, 'idle', 0);
+      paintActor(ctx, record.image, actor, { x, y, width: artWidth, height: artHeight,
+        pose: [0, 0, 0, stretchX, stretchY, 1], type: 'idle', phase: 0, traits: actorTraits(actor) });
+
+      const player = load('assets/sprites.png');
+      if (player.state === 'ready') {
+        const [px, py] = project(86, 39);
+        const hitAge = elapsed - slam.windup;
+        const drawPlayer = player.drawPlayer ??= window.AyothayaPlayerSprite.create(player.image);
+        paintShadow(ctx, px, py, 32 * unit, 48 * unit, 0, palette, 'idle', 0);
+        ctx.save();
+        ctx.translate(Math.round(px), Math.round(py));
+        if (hitAge >= 0 && hitAge < slam.stunTime) ctx.rotate(.19);
+        drawPlayer(ctx, { weapon: 'rusty_sword' }, { dir: 'w', bearing: Math.PI,
+          size: 54 * unit, progress: null, walking: false, phase: 0 });
+        ctx.restore();
+        if (hitAge >= 0 && hitAge < .38) {
+          ctx.save();
+          ctx.fillStyle = '#f5c6ff';
+          ctx.strokeStyle = '#442733';
+          ctx.lineWidth = 3;
+          ctx.font = '700 ' + Math.round(11 * unit) + 'px system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.strokeText('สตัน', px, py - 48 * unit);
+          ctx.fillText('สตัน', px, py - 48 * unit);
+          ctx.restore();
+        }
+      }
+      pretSlamEffect.foreground(ctx, project, unit, slam, elapsed, reducedMotion.matches);
     }
 
     function draw(actor, motion, elapsed, { zoom = 1, ground = 'dark' } = {}) {
@@ -532,8 +683,28 @@
         return;
       }
 
-      if (motion?.id === 'heavy' && actor.weapon) {
-        drawHeavyPreview(record, actor, elapsed, width, height, groundY, zoom, palette);
+      if (actor.weapon && (motion?.id === 'heavy' || motion?.id === 'interrupt')) {
+        drawContactPreview(record, actor, motion.id, elapsed, width, height, groundY, zoom, palette);
+        return;
+      }
+      if (motion?.id === 'sweep' && actor.weapon) {
+        drawSweepPreview(record, actor, elapsed, width, height, groundY, zoom, palette);
+        return;
+      }
+      if (motion?.id === 'guard-skill' && actor.weapon) {
+        drawGuardPreview(record, actor, elapsed, width, height, groundY, zoom, palette);
+        return;
+      }
+      if (motion?.id === 'heal' && actor.weapon) {
+        drawHealPreview(record, actor, elapsed, width, height, groundY, zoom, palette);
+        return;
+      }
+      if (actor.weapon && (motion?.id === 'dash' || motion?.id === 'thrust')) {
+        drawPiercingPreview(record, actor, motion.id, elapsed, width, height, groundY, zoom, palette);
+        return;
+      }
+      if (motion?.id === 'pret-slam' && pretSlamEffect) {
+        drawPretSlamPreview(record, actor, elapsed, width, height, groundY, zoom, palette);
         return;
       }
 

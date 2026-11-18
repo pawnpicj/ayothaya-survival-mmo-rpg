@@ -6,10 +6,22 @@
   const STAT_KEYS = ['STR', 'AGI', 'VIT', 'INT', 'DEX', 'LUK'];
   const BOUNDS = { left: 135, right: 1555, top: 190, bottom: 930 };
   const INTERACT_RANGE = 53;
-  const MELEE_RANGE = 49;
+  const BASIC_ATTACK_RANGE = 100;
   const STRIKE_PHASE = 0.38;
+  const DASH_OVERSHOOT = 30;
+  const BLEED_TICKS = 3;
+  const BLEED_DAMAGE_FRACTION = .15;
+  const BLEED_CHANCE = .2;
+  const MONSTER_CARD_DROP_CHANCE = .01 / 100;
+  const BOSS_CARD_DROP_CHANCE = .025 / 100;
+  const EXPERIENCE_REWARD_RATE = .75;
+  const INTERRUPT_DELAY = 1.2;
+  const SLOW_DURATION = 4;
+  const SLOW_REDUCTION = .3;
   const AUTO_RANGES = { near: 150, medium: 275, far: 450 };
   const AUTO_HEAL_BELOW = 60;
+  const AUTO_GUARD_RANGE = 49;
+  const GUARD_DURATION = 6;
   const DUMMY_RECOVERY_DELAY = 5;
   const VILLAGE_GATE = {
     inner: BOUNDS.right, outer: 2080, viewX: 0.932, halfWidth: 18,
@@ -28,9 +40,18 @@
     route: [[0, 520], [135, 520]],
   };
   const RUINS_INNER_GATE = {
-    id: 'inner-gate', name: 'ประตูชั้นใน', x: 1360, y: 58, reach: 48,
+    id: 'inner-gate', name: 'ป่าช้าวัดร้าง', target: 'cemetery', facing: 'e', x: 1360, y: 58, reach: 48,
     approachY: BOUNDS.top, exitY: 9, halfWidth: 32,
   };
+  const CEMETERY_GATE = {
+    inner: BOUNDS.left, outer: 0, viewX: .096, halfWidth: 26,
+    route: [[0, 590], [135, 590]],
+  };
+  const CEMETERY_HUNT = {
+    title: 'ล่าผีเปรต', needed: 100,
+    description: 'กำจัดมอนสเตอร์ในป่าช้าวัดร้างให้ครบ 100 ตัวเพื่อเรียกบอสผีเปรตออกมาที่ลานพิธี',
+  };
+  const CEMETERY_RESPAWN_DELAY = 10000;
   const ZONES = {
     village: {
       id: 'village', name: 'บ้านท่ามะขาม', town: true, subtitle: 'เขตชานพระนคร', levels: 'Lv. 1–4',
@@ -74,6 +95,21 @@
         ['guardian', 1335, 380], ['guardian', 1460, 603], ['guardian', 1370, 864],
       ],
     },
+    cemetery: {
+      id: 'cemetery', name: 'ป่าช้าวัดร้าง', subtitle: 'สุสานหลังดงเจดีย์ร้าง', levels: 'Lv. 12–24',
+      width: 1680, height: 1120, bounds: { ...BOUNDS, left: CEMETERY_GATE.outer },
+      spawn: [260, 590], gateApproaches: [CEMETERY_GATE], obstacles: [], npcs: [],
+      portals: [{ id: 'cemetery-exit', name: 'ดงเจดีย์ร้าง', x: 7, y: 590, target: 'ruins',
+        arrival: [1360, 145], facing: 's', automatic: true, reach: 16 }],
+      bossSpawn: [1075, 365],
+      enemies: [
+        ['grave_spirit', 470, 390], ['grave_spirit', 565, 545], ['grave_spirit', 425, 798],
+        ['grave_spirit', 640, 285], ['grave_spirit', 780, 675], ['grave_spirit', 940, 805],
+        ['grave_spirit', 1215, 749], ['grave_spirit', 1430, 535], ['grave_spirit', 1370, 330],
+        ['grave_guardian', 610, 735], ['grave_guardian', 755, 465], ['grave_guardian', 1050, 608],
+        ['grave_guardian', 1330, 633], ['grave_guardian', 1445, 800],
+      ],
+    },
     training: {
       id: 'training', name: 'ลานฝึก', levels: 'ทดสอบดาเมจ', width: 1680, height: 1120,
       bounds: { ...BOUNDS, left: TRAINING_RETURN_GATE.outer },
@@ -84,52 +120,70 @@
     },
   };
 
+  const experienceReward = (baseXp, jobXp) => ({
+    xp: Math.round(baseXp * EXPERIENCE_REWARD_RATE),
+    jobXp: Math.round(jobXp * EXPERIENCE_REWARD_RATE),
+  });
+  const halfGold = amount => Math.floor(amount / 2);
+
   const MONSTERS = {
-    tamarind: { name: 'ลูกมะขามภูต', level: 1, hp: 30, atk: 4, xp: 18, jobXp: 9, gold: 5, speed: 53, drop: 'tamarind_core', card: 'tamarind_card' },
-    village_monkey: { name: 'ลิงป่า', sprite: 'monkey', level: 1, hp: 32, atk: 4, xp: 18, jobXp: 9, gold: 5, speed: 65, drop: 'monkey_claw', card: 'monkey_card' },
-    monkey: { name: 'ลิงป่า', level: 2, hp: 53, atk: 7, xp: 30, jobXp: 15, gold: 9, speed: 83, drop: 'monkey_claw' },
-    ghost: { name: 'นางไม้', level: 3, hp: 78, atk: 10, xp: 48, jobXp: 25, gold: 14, speed: 65, drop: 'spirit_dust' },
-    guardian: { name: 'ยักษ์ศิลา', level: 5, hp: 142, atk: 17, xp: 96, jobXp: 54, gold: 27, speed: 63, drop: 'guardian_seal' },
+    tamarind: { name: 'ลูกมะขามภูต', level: 1, hp: 30, atk: 4, ...experienceReward(18, 9), gold: 5, speed: 53, drop: 'tamarind_core', card: 'tamarind_card' },
+    village_monkey: { name: 'ลิงป่า', sprite: 'monkey', level: 1, hp: 32, atk: 4, ...experienceReward(18, 9), gold: 5, speed: 65, drop: 'monkey_claw', card: 'monkey_card' },
+    monkey: { name: 'ลิงป่า', level: 2, hp: 53, atk: 7, ...experienceReward(30, 15), gold: 9, speed: 83, drop: 'monkey_claw' },
+    ghost: { name: 'นางไม้', level: 3, hp: 78, atk: 10, ...experienceReward(48, 25), gold: 14, speed: 65, drop: 'spirit_dust' },
+    guardian: { name: 'ยักษ์ศิลา', level: 5, hp: 142, atk: 17, ...experienceReward(96, 54), gold: 27, speed: 63, drop: 'guardian_seal' },
+    grave_spirit: { name: 'วิญญาณเฝ้าหลุม', sprite: 'ghost', level: 12, hp: 165, atk: 22, ...experienceReward(108, 57), gold: 26, speed: 72, drop: 'spirit_dust' },
+    grave_guardian: { name: 'อารักษ์ป่าช้า', sprite: 'guardian', level: 16, hp: 235, atk: 28, ...experienceReward(145, 76), gold: 40, speed: 61, drop: 'guardian_seal' },
+    pret: { name: 'ผีเปรต', boss: true, level: 24, hp: 2200, atk: 40, ...experienceReward(940, 470), gold: 240,
+      speed: 56, attackRange: 58, windup: .68, attackInterval: 1.65,
+      slam: { radius: 160, windup: 1.1, recovery: .45, cooldown: 7, stunTime: .08 },
+      basicStun: { chance: .002, duration: .01 }, drop: 'pret_ash', card: 'pret_card' },
     dummy: { name: 'หุ่นไล่กา', hp: 999999 },
   };
 
   const ITEMS = {
-    potion: { name: 'ยาสมุนไพร', description: 'ฟื้นพลังชีวิต 45 หน่วย', type: 'consumable', icon: 'potion', price: 12, sell: 4 },
-    elixir: { name: 'น้ำอบมนตรา', description: 'ฟื้นมานา 28 หน่วย', type: 'consumable', icon: 'elixir', price: 16, sell: 6 },
+    potion: { name: 'ยาสมุนไพร', description: 'ฟื้นพลังชีวิต 45 หน่วย', type: 'consumable', icon: 'potion', price: 12, sell: halfGold(4) },
+    elixir: { name: 'น้ำอบมนตรา', description: 'ฟื้นมานา 28 หน่วย', type: 'consumable', icon: 'elixir', price: 16, sell: halfGold(6) },
     town_scroll: { name: 'คัมภีร์กลับเมือง', description: 'พากลับจุดเริ่มต้นของเมืองที่ใกล้ที่สุด',
       type: 'consumable', icon: 'scroll', price: 20 },
     rusty_sword: { name: 'ดาบฝึกหัด', description: 'พลังโจมตี +4', type: 'equipment', icon: 'sword', slot: 'weapon', attack: 4 },
-    bronze_sword: { name: 'ดาบสำริด', description: 'พลังโจมตี +10', type: 'equipment', icon: 'sword', slot: 'weapon', attack: 10, sell: 30 },
-    tamarind_core: { name: 'เมล็ดมะขามภูต', description: 'วัตถุดิบสำหรับขาย', type: 'material', icon: 'seed', sell: 3 },
-    monkey_claw: { name: 'กรงเล็บลิงป่า', description: 'วัตถุดิบสำหรับขาย', type: 'material', icon: 'claw', sell: 7 },
-    spirit_dust: { name: 'ผงพงไพร', description: 'วัตถุดิบสำหรับขาย', type: 'material', icon: 'dust', sell: 10 },
+    bronze_sword: { name: 'ดาบสำริด', description: 'พลังโจมตี +10', type: 'equipment', icon: 'sword', slot: 'weapon', attack: 10, sell: halfGold(30), baseLevel: 10 },
+    tamarind_core: { name: 'เมล็ดมะขามภูต', description: 'วัตถุดิบสำหรับขาย', type: 'material', icon: 'seed', sell: halfGold(3) },
+    monkey_claw: { name: 'กรงเล็บลิงป่า', description: 'วัตถุดิบสำหรับขาย', type: 'material', icon: 'claw', sell: halfGold(7) },
+    spirit_dust: { name: 'ผงพงไพร', description: 'วัตถุดิบสำหรับขาย', type: 'material', icon: 'dust', sell: halfGold(10) },
     tamarind_card: { name: 'การ์ดมะขามภูต', description: 'ใส่ช่องการ์ดเพื่อเพิ่มพลังโจมตี 3 และ HP สูงสุด 12', type: 'equipment', icon: 'card', slot: 'card', attack: 3, hp: 12 },
     monkey_card: { name: 'การ์ดลิงป่า', description: 'ใส่ช่องการ์ดเพื่อเพิ่มพลังโจมตี 3 และ HP สูงสุด 12', type: 'equipment', icon: 'card', slot: 'card', attack: 3, hp: 12 },
-    guardian_seal: { name: 'ตราอารักษ์', description: 'เครื่องรางเก่าที่พบจากยักษ์ศิลา', type: 'material', icon: 'seal', sell: 35 },
+    guardian_seal: { name: 'ตราอารักษ์', description: 'เครื่องรางเก่าที่พบจากยักษ์ศิลา', type: 'material', icon: 'seal', sell: halfGold(35) },
+    pret_ash: { name: 'เถ้าอาคมผีเปรต', description: 'เถ้าจากลานพิธี ใช้ขายให้ร้านค้า', type: 'material', icon: 'dust', sell: halfGold(110) },
+    pret_card: { name: 'การ์ดผีเปรต', description: 'ใส่ช่องการ์ดเพื่อเพิ่มพลังโจมตี 8 และ HP สูงสุด 35', type: 'equipment', icon: 'card', slot: 'card', attack: 8, hp: 35 },
   };
 
   const DEFAULT_SKILL_SLOTS = ['heavy', 'sweep', 'guard', 'heal', 'dash'];
   const ITEM_SLOT_COUNT = 2;
   const ACTIVE_SKILLS = [
-    { id: 'heavy', name: 'ฟันหนัก', icon: 'blade', baseLevel: 1, jobLevel: 1, stat: ['STR', 1], cost: 5, cooldown: 3,
+    { id: 'heavy', name: 'ฟันหนัก', icon: 'blade', baseLevel: 10, jobLevel: 1, stat: ['STR', 1], cost: 5, cooldown: 3,
       description: 'โจมตีเป้าหมายเดียวด้วยพลัง 185%', strike: { range: 90, duration: 0.46, multiplier: 1.85 } },
-    { id: 'sweep', name: 'กวาดดาบ', icon: 'flame', baseLevel: 3, jobLevel: 2, stat: ['STR', 5], cost: 8, cooldown: 5,
-      description: 'โจมตีมอนสเตอร์รอบตัวด้วยพลัง 120%', strike: { area: true, range: 92, duration: 0.43, multiplier: 1.2 } },
-    { id: 'guard', name: 'ตั้งรับ', icon: 'shield', baseLevel: 2, jobLevel: 1, stat: ['VIT', 3], cost: 6, cooldown: 9,
-      description: 'ลดความเสียหายที่ได้รับครึ่งหนึ่งเป็นเวลา 6 วินาที' },
-    { id: 'heal', name: 'สมานแผล', icon: 'leaf', baseLevel: 3, jobLevel: 2, stat: ['INT', 4], cost: 10, cooldown: 10,
+    { id: 'sweep', name: 'กวาดดาบ', icon: 'flame', baseLevel: 15, jobLevel: 2, stat: ['STR', 5], cost: 8, cooldown: 5,
+      description: 'โจมตีมอนสเตอร์รอบตัวด้วยพลัง 120%', strike: { area: true, range: 125, duration: 0.43, multiplier: 1.2 } },
+    { id: 'guard', name: 'กันภัย', icon: 'shield', baseLevel: 15, jobLevel: 1, stat: ['VIT', 3], cost: 6, cooldown: 9,
+      description: `ลดความเสียหายที่ได้รับครึ่งหนึ่งเป็นเวลา ${GUARD_DURATION} วินาที` },
+    { id: 'heal', name: 'รักษาใจ', icon: 'leaf', baseLevel: 15, jobLevel: 2, stat: ['INT', 4], cost: 10, cooldown: 10,
       description: 'ฟื้น HP ทันที 32 + INT × 3' },
-    { id: 'dash', name: 'พุ่งตัด', icon: 'star', baseLevel: 5, jobLevel: 3, stat: ['AGI', 6], cost: 14, cooldown: 8,
-      description: 'พุ่งเข้าโจมตีเป้าหมายในระยะกลางด้วยพลัง 230%', strike: { range: 195, duration: 0.42, multiplier: 2.3 } },
-    { id: 'thrust', name: 'แทงดาบ', icon: 'thrust', baseLevel: 2, jobLevel: 1, stat: ['DEX', 3], cost: 6, cooldown: 4,
-      description: 'แทงด้วยพลัง 145% ในระยะไกลกว่าฟันหนัก', strike: { range: 112, duration: 0.36, multiplier: 1.45 } },
-    { id: 'interrupt', name: 'ฟันสกัด', icon: 'swords', baseLevel: 5, jobLevel: 3, stat: ['DEX', 5], cost: 9, cooldown: 7,
-      description: 'ฟันด้วยพลัง 110% ขัดจังหวะและชะลอการโจมตีถัดไป 1.2 วินาที',
+    { id: 'dash', name: 'พุ่งแทงใจ', icon: 'star', baseLevel: 20, jobLevel: 3, stat: ['AGI', 6], cost: 14, cooldown: 8,
+      description: `พุ่งแทงด้วยพลัง 230% และไปต่อหลังเป้าสูงสุด ${DASH_OVERSHOOT} หน่วย`,
+      strike: { range: 195, duration: 0.42, multiplier: 2.3 } },
+    { id: 'thrust', name: 'แทงใจดำ', icon: 'thrust', baseLevel: 25, jobLevel: 1, stat: ['DEX', 3], cost: 6, cooldown: 4,
+      description: `แทงด้วยพลัง 145% เป้าหมายเลือดไหล ${BLEED_TICKS} วิ. และได้รับดาเมจ ${BLEED_DAMAGE_FRACTION * 100}% ของแรงแทงทุกวินาที`,
+      strike: { range: 112, duration: 0.36, multiplier: 1.45 } },
+    { id: 'interrupt', name: 'ฟันสกัด', icon: 'swords', baseLevel: 30, jobLevel: 3, stat: ['DEX', 5], cost: 9, cooldown: 7,
+      description: `ฟันด้วยพลัง 110% ขัดจังหวะ และลดความเร็วเดินกับโจมตี ${SLOW_REDUCTION * 100}% นาน ${SLOW_DURATION} วินาที`,
       strike: { range: 66, duration: 0.36, multiplier: 1.1 } },
   ];
   const AUTO_SKILL_SLOT_COUNT = 5;
   const ACTIVE_SKILL_IDS = new Set(ACTIVE_SKILLS.map(skill => skill.id));
   const PASSIVE_SKILLS = {
+    bleed: { id: 'bleed', name: 'โจมตีติดเลือด', icon: 'thrust', baseLevel: 30, bonus: BLEED_CHANCE,
+      description: `เมื่อโจมตีโดน มีโอกาส ${BLEED_CHANCE * 100}% ทำให้เลือดไหล ${BLEED_TICKS} วินาที ดาเมจ ${BLEED_DAMAGE_FRACTION * 100}% ของการโจมตีต่อวินาที` },
     mastery: { id: 'mastery', name: 'ชำนาญดาบ', icon: 'blade', baseLevel: 2, jobLevel: 1, stat: ['STR', 3], bonus: 0.1,
       description: 'เพิ่มความเสียหาย 10% เมื่อถือดาบ' },
     precision: { id: 'precision', name: 'จังหวะดาบ', icon: 'star', baseLevel: 5, jobLevel: 3, stat: ['DEX', 6], bonus: 0.08,
@@ -139,7 +193,7 @@
   };
   const QUEST = {
     npcId: 'elder', title: 'เฝ้าท่ามะขาม', description: 'ช่วยลุงขามกำจัดลิงป่า Lv. 1 จำนวน 3 ตัว', needed: 3,
-    rewards: { item: 'bronze_sword', gold: 35, xp: 38, jobXp: 18 },
+    rewards: { item: 'bronze_sword', gold: halfGold(35), ...experienceReward(38, 18) },
   };
   const QUEST_OBJECTIVES = {
     available: 'คุยกับลุงขามเพื่อรับภารกิจ', active: 'กำจัดลิงป่า Lv. 1',
@@ -149,11 +203,11 @@
     npcId: 'ruins-guard', title: 'เปิดประตูดงเจดีย์ร้าง',
     description: `กำจัด${MONSTERS.ghost.name} 10 ตัว และ${MONSTERS.guardian.name} 5 ตัว แล้วกลับไปรายงานพรานหม่อง`,
     goals: { ghost: 10, guardian: 5 },
-    rewards: { unlock: 'เปิดประตูชั้นในของดงเจดีย์ร้าง' },
+    rewards: { unlock: 'เปิดทางสู่ป่าช้าวัดร้าง' },
   };
   const RUINS_QUEST_OBJECTIVES = {
     available: 'คุยกับพรานหม่อง', active: 'กำจัดมอนสเตอร์ตามเป้าหมาย',
-    ready: 'กลับไปหาพรานหม่อง', completed: 'ผ่านประตูชั้นในได้แล้ว',
+    ready: 'กลับไปหาพรานหม่อง', completed: 'เดินทางต่อสู่ป่าช้าวัดร้าง',
   };
   const DIRECTIONS = ['e', 'se', 's', 'sw', 'w', 'nw', 'n', 'ne'];
   const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
@@ -216,6 +270,14 @@
     return Object.entries(RUINS_QUEST.goals).every(([id, needed]) => counts[id] === needed);
   }
 
+  function readCemeteryHunt(value, deadline) {
+    const now = Date.now();
+    const respawnAt = Number.isFinite(deadline) && deadline > now ? Math.min(deadline, now + CEMETERY_RESPAWN_DELAY) : 0;
+    const count = respawnAt ? 0 : boundedNumber(value, 0, 0, CEMETERY_HUNT.needed);
+    return { ...CEMETERY_HUNT, status: 'active', count, respawnAt, objective: respawnAt ? 'รอฝูงมอนสเตอร์กลับมา' :
+      count === CEMETERY_HUNT.needed ? 'ผีเปรตอยู่ที่ลานพิธี' : 'กำจัดมอนสเตอร์ในป่าช้า' };
+  }
+
   function questProgress(quest) {
     if (!quest.goals) return `${quest.count} / ${quest.needed}`;
     return Object.entries(quest.goals).map(([id, needed]) => `${MONSTERS[id].name} ${quest.counts[id]}/${needed}`).join(' · ');
@@ -237,6 +299,10 @@
     });
   }
 
+  function meetsItemLevel(item, level) {
+    return level >= (item.baseLevel ?? 1);
+  }
+
   function makePlayer(saved = {}) {
     const inventory = { potion: 3, elixir: 1, rusty_sword: 1 };
     if (saved.inventory && typeof saved.inventory === 'object') {
@@ -249,16 +315,19 @@
     }
     const stats = Object.fromEntries(STAT_KEYS.map(key => [key, boundedNumber(saved.stats?.[key], 1, 1, 999)]));
     const equipment = { weapon: 'rusty_sword' };
+    const level = boundedNumber(saved.level, 1, 1, 1000);
     for (const [slot, id] of Object.entries(saved.equipment || {})) {
-      if (Object.hasOwn(ITEMS, id) && ITEMS[id].slot === slot && inventory[id]) equipment[slot] = id;
+      if (Object.hasOwn(ITEMS, id) && ITEMS[id].slot === slot && inventory[id] && meetsItemLevel(ITEMS[id], level)) {
+        equipment[slot] = id;
+      }
     }
     const player = {
       x: 770, y: 570, dir: 's', moving: false, action: 'idle', actionTime: 0,
-      name: 'นักดาบฝึกหัด', job: 'นักดาบ', level: boundedNumber(saved.level, 1, 1, 1000),
+      name: 'นักดาบฝึกหัด', job: 'นักดาบ', level,
       jobLevel: boundedNumber(saved.jobLevel, 1, 1, 1000),
       xp: boundedNumber(saved.xp, 0, 0, 1000000), jobXp: boundedNumber(saved.jobXp, 0, 0, 1000000),
       gold: boundedNumber(saved.gold, 12, 0, 10000000), statPoints: boundedNumber(saved.statPoints, 0, 0, 9999),
-      inventory, equipment, stats, hp: 100, mp: 50, guardTime: 0,
+      inventory, equipment, stats, hp: 100, mp: 50, guardTime: 0, stunTime: 0,
     };
     updateAttributes(player);
     player.hp = boundedNumber(saved.hp, player.maxHp, 1, player.maxHp);
@@ -420,6 +489,10 @@
     entity.actionTime = seconds;
   }
 
+  function enemyImpactTime(enemy) {
+    return enemy.attackStyle === 'pret-slam' ? enemy.slam.recovery : enemy.actionDuration * (1 - STRIKE_PHASE);
+  }
+
   function autoOptions(settings) {
     const choices = Array.isArray(settings?.skillIds) ? settings.skillIds : [];
     const used = new Set();
@@ -459,7 +532,8 @@
     const state = {
       player, zone: null, zoneInfo: null, enemies: [], npcs: [], portals: [], targetId: null,
       quest: { ...QUEST, status, count: progress, objective: QUEST_OBJECTIVES[status] },
-      ruinsQuest: readRuinsQuest(saved?.ruinsQuest), trackedQuest: null,
+      ruinsQuest: readRuinsQuest(saved?.ruinsQuest), cemeteryHunt: readCemeteryHunt(saved?.cemeteryKills, saved?.cemeteryRespawnAt),
+      trackedQuest: null,
       skills, passiveSkills: Object.values(PASSIVE_SKILLS), skillSlots, itemSlots: readItemSlots(saved?.itemSlots),
       enabledSkills: readEnabledSkills(saved, skillSlots), items: ITEMS,
       auto: { ...autoOptions(saved?.auto), enabled: false },
@@ -489,12 +563,13 @@
     }
 
     function skillRequirements(skill, stats = player.stats) {
-      const [stat, minimum] = skill.stat;
-      return [
-        { label: 'Base Lv.', minimum: skill.baseLevel, current: player.level },
-        { label: 'Job Lv.', minimum: skill.jobLevel, current: player.jobLevel },
-        { label: stat, minimum, current: stats[stat] },
-      ];
+      const requirements = [{ label: 'Base Lv.', minimum: skill.baseLevel, current: player.level }];
+      if (skill.jobLevel) requirements.push({ label: 'Job Lv.', minimum: skill.jobLevel, current: player.jobLevel });
+      if (skill.stat) {
+        const [stat, minimum] = skill.stat;
+        requirements.push({ label: stat, minimum, current: stats[stat] });
+      }
+      return requirements;
     }
 
     function isSkillUnlocked(skill, stats) {
@@ -579,7 +654,8 @@
       const position = state.dead ? zones.village.spawn : [x, y];
       const { range, hpBelow, mpBelow, skillIds } = state.auto;
       return JSON.stringify({ version: 1, savedAt: Date.now(), zone: state.dead ? 'village' : state.zone, quest: { status, count },
-        ruinsQuest: { status: ruinsStatus, counts },
+        ruinsQuest: { status: ruinsStatus, counts }, cemeteryKills: state.cemeteryHunt.count,
+        cemeteryRespawnAt: state.cemeteryHunt.respawnAt,
         trainingCooldowns: state.trainingCooldowns,
         trainingManaCosts: state.trainingManaCosts,
         auto: { range, hpBelow, mpBelow, skillIds }, skillSlots: state.skillSlots, itemSlots: state.itemSlots,
@@ -618,6 +694,7 @@
       autoItemWait = 0;
       state.quest.count = status === 'ready' || status === 'completed' ? QUEST.needed : progress;
       state.ruinsQuest = readRuinsQuest(restored.ruinsQuest);
+      state.cemeteryHunt = readCemeteryHunt(restored.cemeteryKills, restored.cemeteryRespawnAt);
       setQuest(status);
       state.dead = false;
       attackCooldown = 0;
@@ -630,6 +707,7 @@
 
     function resetLevels() {
       Object.assign(player, { level: 1, jobLevel: 1, xp: 0, jobXp: 0 });
+      if (!meetsItemLevel(ITEMS[player.equipment.weapon], player.level)) player.equipment.weapon = 'rusty_sword';
       updateAttributes(player);
       if (!isSkillEnabled(skillsById.get('guard'))) player.guardTime = 0;
       if (pendingStrike && pendingStrike.style !== 'basic' && !isSkillEnabled(skillsById.get(pendingStrike.style))) {
@@ -697,27 +775,72 @@
 
     function savedZone(id) {
       if (id === 'training' && zones.training) return id;
+      if (id === 'cemetery' && zones.cemetery && state.quest.status === 'completed' && state.ruinsQuest.status === 'completed') return id;
       if (id === 'ruins' && zones.ruins && state.quest.status === 'completed') return id;
       return 'village';
+    }
+
+    function createEnemy(id, type, x, y, index = 0) {
+      const details = MONSTERS[type];
+      const name = type === 'dummy' ? `${details.name} ${index + 1}` : details.name;
+      return { id, type, sprite: details.sprite ?? type, x, y, origin: { x, y }, name, level: details.level,
+        hp: details.hp, maxHp: details.hp, moving: false, action: 'idle', actionTime: 0, dir: 's', visible: true,
+        boss: Boolean(details.boss), aggro: false, cooldown: 0.6, slam: details.slam, slamCooldown: 0,
+        slowTime: 0, wander: null,
+        wanderIn: details.boss ? Infinity : 2 + index * 0.47, respawnIn: 0 };
+    }
+
+    function createZoneEnemies(zone) {
+      return zone.enemies.map(([type, x, y], index) => createEnemy(`${zone.id}-${index}`, type, x, y, index));
+    }
+
+    function spawnCemeteryBoss() {
+      const [x, y] = state.zoneInfo.bossSpawn;
+      state.enemies = [createEnemy('cemetery-boss', 'pret', x, y)];
+      state.targetId = null;
+      cancelMovement();
+    }
+
+    function recordCemeteryKill(enemy) {
+      const { count, needed } = state.cemeteryHunt;
+      if (!enemy.boss && count >= needed) return;
+      const hunt = enemy.boss ? readCemeteryHunt(0, Date.now() + CEMETERY_RESPAWN_DELAY) : readCemeteryHunt(count + 1);
+      state.cemeteryHunt = state.trackedQuest = hunt;
+      if (hunt.count === needed) {
+        spawnCemeteryBoss();
+        notice('ผีเปรตปรากฏตัวที่ลานพิธี');
+      } else if (enemy.boss) {
+        notice(`ปราบผีเปรตสำเร็จ ฝูงมอนสเตอร์จะกลับมาใน ${CEMETERY_RESPAWN_DELAY / 1000} วินาที`);
+      }
+      emit({ type: 'quest', status: hunt.status, count: hunt.count });
+    }
+
+    function finishCemeteryRespawn() {
+      const { respawnAt } = state.cemeteryHunt;
+      if (!respawnAt || Date.now() < respawnAt) return;
+      state.cemeteryHunt = readCemeteryHunt(0);
+      if (state.zone === 'cemetery') {
+        state.trackedQuest = state.cemeteryHunt;
+        state.enemies = createZoneEnemies(state.zoneInfo);
+        notice('ฝูงมอนสเตอร์กลับมาแล้ว เริ่มการล่ารอบใหม่');
+        emit({ type: 'quest', status: 'active', count: 0 });
+      }
+      save();
     }
 
     function enterZone(id, point, facing = 's') {
       const zone = zones[id];
       if (!zone) return;
       state.zone = id;
-      state.trackedQuest = id === 'ruins' ? state.ruinsQuest : state.quest;
+      state.trackedQuest = id === 'cemetery' ? state.cemeteryHunt : id === 'ruins' ? state.ruinsQuest : state.quest;
       state.zoneInfo = zone.innerGate ? {
         ...zone, innerGate: { ...zone.innerGate, open: state.ruinsQuest.status === 'completed' },
       } : zone;
       state.npcs = zone.npcs;
       state.portals = zone.portals;
-      state.enemies = zone.enemies.map(([type, x, y], index) => {
-        const details = MONSTERS[type];
-        const name = type === 'dummy' ? `${details.name} ${index + 1}` : details.name;
-        return { id: `${id}-${index}`, type, sprite: details.sprite ?? type, x, y, origin: { x, y }, name, level: details.level,
-          hp: details.hp, maxHp: details.hp, moving: false, action: 'idle', actionTime: 0, dir: 's', visible: true,
-          aggro: false, cooldown: 0.6, wander: null, wanderIn: 2 + index * 0.47, respawnIn: 0 };
-      });
+      if (id !== 'cemetery') state.enemies = createZoneEnemies(zone);
+      else if (state.cemeteryHunt.count === CEMETERY_HUNT.needed) spawnCemeteryBoss();
+      else state.enemies = state.cemeteryHunt.respawnAt ? [] : createZoneEnemies(zone);
       const position = point && canStand(point, state.zoneInfo) ? point : { x: zone.spawn[0], y: zone.spawn[1] };
       placePlayer(position, facing);
       emit({ type: 'zone', zone: id, zoneInfo: state.zoneInfo });
@@ -725,7 +848,7 @@
 
     function placePlayer(point, facing = 's') {
       pendingStrike = null;
-      Object.assign(player, point, { dir: facing, moving: false, action: 'idle', actionTime: 0 });
+      Object.assign(player, point, { dir: facing, moving: false, action: 'idle', actionTime: 0, stunTime: 0 });
       state.targetId = null;
       cancelMovement();
     }
@@ -743,6 +866,7 @@
         for (const portal of zone.portals) {
           const next = zones[portal.target];
           if (!next || visited.has(next.id) || (portal.quest && state.quest.status !== 'completed')) continue;
+          if (portal.id === zone.innerGate?.id && state.ruinsQuest.status !== 'completed') continue;
           const [x, y] = portal.arrival ?? next.arrival ?? next.spawn;
           pending.push({ zone: next, point: { x, y }, cost: cost + distance(point, portal) });
         }
@@ -787,7 +911,7 @@
     }
 
     function attack() {
-      if (state.dead) return false;
+      if (state.dead || player.stunTime > 0) return false;
       const enemy = targetEnemy() || closestToPlayer(state.enemies.filter(entity => entity.hp > 0), 240);
       if (!enemy) return false;
       state.targetId = enemy.id;
@@ -802,9 +926,24 @@
       player.inventory[id] = (player.inventory[id] || 0) + count;
     }
 
-    function removeItem(id) {
-      player.inventory[id]--;
+    function removeItem(id, count = 1) {
+      player.inventory[id] -= count;
       if (player.inventory[id] === 0) delete player.inventory[id];
+    }
+
+    function discardableItemCount(id) {
+      if (state.dead || typeof id !== 'string' || !Object.hasOwn(ITEMS, id)) return 0;
+      const reserved = id === 'rusty_sword' || player.equipment[ITEMS[id].slot] === id ? 1 : 0;
+      return Math.max(0, (player.inventory[id] ?? 0) - reserved);
+    }
+
+    function discardItem(id, count) {
+      if (!Number.isSafeInteger(count) || count < 1 || count > discardableItemCount(id)) return false;
+      removeItem(id, count);
+      if (!player.inventory[id]) state.itemSlots = state.itemSlots.map(itemId => itemId === id ? null : itemId);
+      save();
+      notice(`ทิ้ง${ITEMS[id].name} ×${count} แล้ว`);
+      return true;
     }
 
     function giveExperience(xp, jobXp) {
@@ -847,6 +986,8 @@
     }
 
     function defeatEnemy(enemy) {
+      enemy.bleed = null;
+      enemy.slowTime = 0;
       if (enemy.type === 'dummy') {
         enemy.hp = enemy.maxHp;
         return;
@@ -856,14 +997,20 @@
       enemy.aggro = false;
       enemy.moving = false;
       enemy.action = 'death';
-      player.gold += data.gold;
+      player.gold += halfGold(data.gold);
       if (state.targetId === enemy.id) {
         state.targetId = null;
         cancelMovement();
       }
-      giveExperience(data.xp, data.jobXp);
+      const levelGap = player.level - data.level;
+      if (levelGap < 15) {
+        const rate = levelGap >= 10 ? .7 : 1;
+        giveExperience(Math.round(data.xp * rate), Math.round(data.jobXp * rate));
+      }
       dropLoot(enemy, data.drop);
-      if (data.card && Math.random() < 0.1 + (player.stats.LUK - 1) * 0.008) dropLoot(enemy, data.card);
+      const cardChance = data.boss ? BOSS_CARD_DROP_CHANCE : MONSTER_CARD_DROP_CHANCE;
+      if (data.card && Math.random() < cardChance) dropLoot(enemy, data.card);
+      if (state.zone === 'cemetery') recordCemeteryKill(enemy);
       if (state.quest.status === 'active' && state.zone === 'village' && enemy.type === 'village_monkey') {
         state.quest.count++;
         if (state.quest.count >= state.quest.needed) {
@@ -889,7 +1036,7 @@
 
     function criticalChance(stats = player.stats) {
       const precision = player.equipment.weapon ? passiveBonus(PASSIVE_SKILLS.precision, stats) : 0;
-      return Math.min(0.5, 0.06 + (stats.LUK - 1) * 0.01) + precision;
+      return Math.min(0.8, 0.06 + (stats.LUK - 1) * 0.01 + precision);
     }
 
     function defense(stats = player.stats) {
@@ -905,6 +1052,13 @@
         attacksPerSecond: 1 / basicAttackInterval(stats) };
     }
 
+    function damageEnemy(enemy, damage, details) {
+      enemy.hp = Math.max(0, enemy.hp - damage);
+      if (enemy.type === 'dummy') enemy.lastHitAt = simulationTime;
+      emit({ type: 'damage', enemy: true, x: enemy.x, y: enemy.y, value: damage, ...details });
+      if (enemy.hp === 0) defeatEnemy(enemy);
+    }
+
     function hitEnemy(enemy, multiplier, skill = null) {
       if (!enemy || enemy.hp <= 0) return;
       const wieldingSword = Boolean(player.equipment.weapon);
@@ -912,28 +1066,42 @@
       const critical = Math.random() < criticalChance();
       const power = player.attack * (0.92 + Math.random() * 0.16) + (player.stats.DEX - 1);
       const damage = Math.max(1, Math.round(power * multiplier * (1 + mastery) * (critical ? 1.5 : 1)));
-      enemy.hp = Math.max(0, enemy.hp - damage);
-      if (enemy.type === 'dummy') {
-        enemy.lastHitAt = simulationTime;
-      } else {
-        enemy.aggro = true;
-        enemy.cooldown = Math.max(skill === 'interrupt' ? 1.2 : 0.24, enemy.cooldown);
+      const bleedChance = passiveBonus(PASSIVE_SKILLS.bleed);
+      if (enemy.hp > damage && (skill === 'thrust' || (bleedChance > 0 && Math.random() < bleedChance))) {
+        enemy.bleed = { damage: Math.max(1, Math.round(damage * BLEED_DAMAGE_FRACTION)),
+          nextTick: simulationTime + 1, ticksLeft: BLEED_TICKS };
       }
-      pose(enemy, 'hit', 0.14);
-      emit({ type: 'damage', enemy: true, x: enemy.x, y: enemy.y, value: damage, critical, skill });
-      if (enemy.hp === 0) defeatEnemy(enemy);
+      if (enemy.type !== 'dummy') {
+        enemy.aggro = true;
+        const interrupts = skill === 'interrupt';
+        if (interrupts) enemy.slowTime = SLOW_DURATION;
+        enemy.cooldown = Math.max(interrupts ? INTERRUPT_DELAY * (1 - SLOW_REDUCTION) : 0.24, enemy.cooldown);
+      }
+      const slamming = enemy.action === 'attack' && enemy.attackStyle === 'pret-slam';
+      if (!slamming || skill === 'interrupt') pose(enemy, 'hit', 0.14);
+      damageEnemy(enemy, damage, { critical, skill });
     }
 
-    function hurtPlayer(enemy) {
+    function hurtPlayer(enemy, slam = null) {
       const data = MONSTERS[enemy.type];
       const guard = player.guardTime > 0 ? 0.5 : 1;
       const damage = Math.max(1, Math.round((data.atk - defense()) * guard));
       player.hp = Math.max(0, player.hp - damage);
-      emit({ type: 'damage', enemy: false, x: player.x, y: player.y, value: damage, guarded: guard < 1 });
+      let stunTime = 0;
       if (player.hp > 0) {
-        if (player.action === 'idle' || player.action === 'walk') pose(player, 'hit', 0.16);
-        return;
+        stunTime = slam?.stunTime ?? (data.basicStun && Math.random() < data.basicStun.chance ? data.basicStun.duration : 0);
+        if (stunTime > 0) {
+          player.stunTime = Math.max(player.stunTime, stunTime);
+          pendingStrike = null;
+          player.moving = false;
+          pose(player, 'hit', 0.16);
+        } else if (player.action === 'idle' || player.action === 'walk') {
+          pose(player, 'hit', 0.16);
+        }
       }
+      emit({ type: 'damage', enemy: false, x: player.x, y: player.y, value: damage, guarded: guard < 1,
+        source: { x: enemy.x, y: enemy.y }, stunTime });
+      if (player.hp > 0) return;
       state.dead = true;
       setAuto(false);
       pendingStrike = null;
@@ -953,6 +1121,20 @@
       pendingStrike = { targets, range, multiplier, style, impact: duration * (1 - STRIKE_PHASE) };
     }
 
+    function dashPastTarget(target, gap) {
+      const angle = gap > 0 ? Math.atan2(target.y - player.y, target.x - player.x)
+        : DIRECTIONS.indexOf(player.attackDir) * Math.PI / 4;
+      const dx = Math.cos(angle);
+      const dy = Math.sin(angle);
+      let arrival = target;
+      for (let extra = 1; extra <= DASH_OVERSHOOT; extra++) {
+        const point = { x: target.x + dx * extra, y: target.y + dy * extra };
+        if (!canStand(point, state.zoneInfo)) break;
+        arrival = point;
+      }
+      moveEntity(player, arrival, state.zoneInfo);
+    }
+
     function resolveStrike(dt) {
       if (!pendingStrike || player.actionTime - dt > pendingStrike.impact) return;
       const { targets, range, multiplier, style } = pendingStrike;
@@ -962,10 +1144,10 @@
       let contact = null;
       for (const enemy of targets) {
         const gap = distance(player, enemy);
-        if (enemy.hp <= 0 || gap > range || !straightPath(player, enemy, state.zoneInfo)) continue;
+        if (enemy.hp <= 0 || !state.enemies.includes(enemy) || gap > range || !straightPath(player, enemy, state.zoneInfo)) continue;
         if (aimed && gap > 0) player.attackDir = direction(enemy.x - player.x, enemy.y - player.y);
         if (origin && !contact) contact = { x: enemy.x, y: enemy.y };
-        if (style === 'dash') moveToward(player, enemy, Math.max(0, gap - 28), state.zoneInfo);
+        if (style === 'dash') dashPastTarget(enemy, gap);
         hitEnemy(enemy, multiplier, style === 'basic' ? null : style);
       }
       if (origin) {
@@ -979,7 +1161,7 @@
     }
 
     function castSkill(skill, automatic = false) {
-      if (state.dead || pendingStrike || !skill) return false;
+      if (state.dead || player.stunTime > 0 || pendingStrike || !skill) return false;
       const unavailable = reason => {
         if (!automatic) notice(reason);
         return false;
@@ -993,16 +1175,17 @@
       const { strike } = skill;
       let targets;
       if (strike?.area) {
-        targets = state.enemies.filter(enemy => enemy.hp > 0 && distance(player, enemy) < strike.range &&
+        targets = state.enemies.filter(enemy => enemy.hp > 0 && distance(player, enemy) <= strike.range &&
           straightPath(player, enemy, state.zoneInfo));
         if (!targets.length) return unavailable('ไม่มีมอนสเตอร์ในระยะ');
       } else if (strike) {
         const enemy = targetEnemy();
-        if (!enemy || distance(player, enemy) > strike.range || !straightPath(player, enemy, state.zoneInfo)) {
+        const gap = enemy ? distance(player, enemy) : Infinity;
+        if (gap > strike.range || !straightPath(player, enemy, state.zoneInfo)) {
           return unavailable(enemy ? 'เป้าหมายอยู่นอกระยะสกิล' : 'เลือกมอนสเตอร์ก่อนใช้สกิล');
         }
         targets = [enemy];
-        player.dir = direction(enemy.x - player.x, enemy.y - player.y);
+        if (gap > 0) player.dir = direction(enemy.x - player.x, enemy.y - player.y);
       }
       if (skill.id === 'heal' && player.hp >= player.maxHp) return unavailable('พลังชีวิตเต็มแล้ว');
       player.mp -= manaCost;
@@ -1010,7 +1193,7 @@
       attackCooldown = Math.max(attackCooldown, 0.43);
       if (strike) startStrike(targets, skill.id, strike.duration, strike.range + 10, strike.multiplier);
       else pose(player, 'cast', 0.38);
-      if (skill.id === 'guard') player.guardTime = 6;
+      if (skill.id === 'guard') player.guardTime = GUARD_DURATION;
       if (skill.id === 'heal') player.hp = Math.min(player.maxHp, player.hp + 32 + player.stats.INT * 3);
       emit({ type: 'skill', skill: skill.id, name: skill.name, x: player.x, y: player.y,
         windup: strike ? strike.duration * STRIKE_PHASE : 0 });
@@ -1049,6 +1232,10 @@
     function equipItem(id) {
       const item = player.inventory[id] && ITEMS[id];
       if (!item?.slot || player.equipment[item.slot] === id) return false;
+      if (!meetsItemLevel(item, player.level)) {
+        notice(`ต้องการ Base Lv. ${item.baseLevel} เพื่อสวม${item.name}`);
+        return false;
+      }
       player.equipment[item.slot] = id;
       updateAttributes(player);
       notice(`สวม${item.name}`);
@@ -1129,7 +1316,7 @@
         if (status === 'available') {
           questView = 'offer';
           text = ruins
-            ? `ประตูชั้นในยังปิดอยู่ ${quest.description} ข้าจะเปิดประตูให้เมื่อเจ้ากลับมา`
+            ? `ทางเข้าป่าช้าวัดร้างยังปิดอยู่ ${quest.description} ข้าจะเปิดประตูให้เมื่อเจ้ากลับมา`
             : 'ฝากกำจัดลิงป่า Lv. 1 สัก 3 ตัวให้ลุงหน่อย พวกมันลงมาป้วนเปี้ยนอยู่ทุ่งทางตะวันออก';
         } else if (status === 'ready') {
           setQuest('completed', quest);
@@ -1140,13 +1327,13 @@
             giveExperience(xp, jobXp);
           }
           questView = 'reward';
-          text = ruins ? 'ข้าเปิดประตูชั้นในให้แล้ว เดินไปลอดซุ้มอิฐด้านตะวันออกเฉียงเหนือได้เลย'
+          text = ruins ? 'ข้าเปิดทางสู่ป่าช้าวัดร้างแล้ว เดินไปลอดซุ้มอิฐด้านตะวันออกเฉียงเหนือได้เลย'
             : 'ขอบใจมาก ทีนี้ข้ามสะพานไม้แล้วลอดประตูอิฐไปดงเจดีย์ร้างได้แล้ว';
         } else if (status === 'active') {
           questView = 'progress';
           text = ruins ? questProgress(quest) : `จัดการลิงป่าได้ ${quest.count} จาก ${quest.needed} ตัวแล้ว`;
         } else {
-          text = ruins ? 'ประตูชั้นในเปิดแล้ว ทางไปอยู่ตรงซุ้มอิฐด้านตะวันออกเฉียงเหนือ'
+          text = ruins ? 'ทางไปป่าช้าวัดร้างอยู่ตรงซุ้มอิฐด้านตะวันออกเฉียงเหนือ'
             : 'ถ้าจะไปดงเจดีย์ร้าง ให้เดินข้ามสะพานไม้ไปลอดประตูอิฐทางตะวันออก';
         }
         save();
@@ -1162,7 +1349,7 @@
           notice('ทำภารกิจของพรานหม่องให้เสร็จก่อนผ่านประตู');
           return false;
         }
-        return routeTo({ x: entity.x, y: player.y < entity.y ? entity.approachY : entity.exitY });
+        return routeTo({ x: entity.x, y: entity.exitY });
       }
       if (!entity.target) {
         state.interacting = entity.id;
@@ -1173,6 +1360,10 @@
         notice('ทำภารกิจของลุงขามให้เสร็จก่อนผ่านประตู');
         return false;
       }
+      return travelThrough(entity);
+    }
+
+    function travelThrough(entity) {
       const zone = zones[entity.target];
       if (!zone) return false;
       const [x, y] = entity.arrival ?? zone.arrival ?? zone.spawn;
@@ -1182,7 +1373,7 @@
     }
 
     function interact(id) {
-      if (state.dead) return false;
+      if (state.dead || player.stunTime > 0) return false;
       setAuto(false);
       const entities = [...state.npcs, ...state.portals];
       const entity = id ? entities.find(candidate => candidate.id === id) : closestToPlayer(entities, 145);
@@ -1202,6 +1393,13 @@
       player.moving = false;
       attackCooldown = Math.max(0, attackCooldown - dt);
       player.guardTime = Math.max(0, player.guardTime - dt);
+      if (player.stunTime > 0) {
+        const blockedTime = Math.min(dt, player.stunTime);
+        player.stunTime -= blockedTime;
+        animate(player, blockedTime);
+        dt -= blockedTime;
+        if (dt === 0) return;
+      }
       const axisLength = Math.hypot(axis.x, axis.y);
       const autoCasting = state.auto.enabled && (player.action === 'cast' ||
         (player.action === 'attack' && player.attackStyle !== 'basic'));
@@ -1215,12 +1413,12 @@
       } else if (state.autoAttack && !autoCasting) {
         const enemy = targetEnemy();
         if (!enemy) cancelMovement();
-        else if (distance(player, enemy) <= MELEE_RANGE && straightPath(player, enemy, state.zoneInfo)) {
+        else if (distance(player, enemy) <= BASIC_ATTACK_RANGE && straightPath(player, enemy, state.zoneInfo)) {
           waypoints = [];
           player.dir = direction(enemy.x - player.x, enemy.y - player.y);
           if (attackCooldown === 0 && !pendingStrike) {
             attackCooldown = basicAttackInterval();
-            startStrike([enemy], 'basic', Math.min(0.4, attackCooldown), MELEE_RANGE + 10, 1);
+            startStrike([enemy], 'basic', Math.min(0.4, attackCooldown), BASIC_ATTACK_RANGE + 10, 1);
           }
         } else {
           repath -= dt;
@@ -1243,11 +1441,21 @@
         (!portal.quest || state.quest.status === 'completed') &&
         distance(player, portal) <= (portal.reach ?? INTERACT_RANGE));
       if (exit) finishInteraction(exit);
+      const innerGate = state.zoneInfo.innerGate;
+      if (innerGate?.open && player.y <= innerGate.exitY + 20 && Math.abs(player.x - innerGate.x) <= innerGate.halfWidth) {
+        travelThrough(innerGate);
+      }
       resolveStrike(dt);
       animate(player, dt);
     }
 
     function updateEnemy(enemy, dt) {
+      const bleed = enemy.bleed;
+      if (bleed && simulationTime >= bleed.nextTick) {
+        bleed.nextTick += 1;
+        if (--bleed.ticksLeft === 0) enemy.bleed = null;
+        damageEnemy(enemy, bleed.damage, { status: 'bleed' });
+      }
       if (enemy.type === 'dummy') {
         if (enemy.hp < enemy.maxHp && simulationTime >= enemy.lastHitAt + DUMMY_RECOVERY_DELAY) {
           enemy.hp = enemy.maxHp;
@@ -1256,38 +1464,55 @@
         return;
       }
       if (enemy.hp <= 0) {
+        if (enemy.boss && !enemy.visible) return;
         enemy.respawnIn -= dt;
         enemy.visible = enemy.respawnIn > 9.6;
-        if (enemy.respawnIn <= 0) {
+        if (enemy.respawnIn <= 0 && !enemy.boss) {
           Object.assign(enemy, enemy.origin, { hp: enemy.maxHp, action: 'idle', visible: true, wander: null, wanderIn: 2 });
         }
         return;
       }
       const details = MONSTERS[enemy.type];
+      const attackRange = details.attackRange ?? 35;
+      const { slam } = enemy;
       enemy.moving = false;
-      enemy.cooldown = Math.max(0, enemy.cooldown - dt);
+      const actionStep = dt - Math.min(dt, enemy.slowTime) * SLOW_REDUCTION;
+      enemy.slowTime = Math.max(0, enemy.slowTime - dt);
+      enemy.cooldown = Math.max(0, enemy.cooldown - actionStep);
+      if (slam) enemy.slamCooldown = Math.max(0, enemy.slamCooldown - dt);
       const gap = distance(enemy, player);
       const playerReachable = gap < 245 && straightPath(enemy, player, state.zoneInfo);
-      if (state.zone === 'ruins' && gap < 100 && playerReachable) enemy.aggro = true;
+      if ((state.zone === 'ruins' || state.zone === 'cemetery') && gap < 100 && playerReachable) enemy.aggro = true;
       if (enemy.aggro && (!playerReachable || distance(enemy, enemy.origin) > 220 || state.dead)) {
         enemy.aggro = false;
         enemy.wander = enemy.origin;
       }
       if (enemy.action === 'attack') {
-        const impact = enemy.actionDuration * (1 - STRIKE_PHASE);
-        if (enemy.actionTime > impact && enemy.actionTime - dt <= impact &&
-            !state.dead && gap <= 47 && playerReachable) hurtPlayer(enemy);
-        animate(enemy, dt);
+        const impact = enemyImpactTime(enemy);
+        if (enemy.actionTime > impact && enemy.actionTime - actionStep <= impact) {
+          const groundSlam = enemy.attackStyle === 'pret-slam' ? slam : null;
+          if (groundSlam) emit({ type: 'boss-slam' });
+          if (!state.dead && playerReachable && gap <= (groundSlam?.radius ?? attackRange + 12)) hurtPlayer(enemy, groundSlam);
+        }
+        animate(enemy, actionStep);
         return;
       }
       if (enemy.aggro && enemy.action !== 'hit') {
-        if (gap < 35) {
+        if (slam && enemy.slamCooldown === 0 && enemy.cooldown === 0 && gap <= slam.radius) {
+          enemy.attackStyle = 'pret-slam';
+          enemy.slamCooldown = slam.cooldown;
+          enemy.cooldown = details.attackInterval;
+          pose(enemy, 'attack', slam.windup + slam.recovery);
+          return;
+        }
+        if (gap < attackRange) {
           enemy.dir = direction(player.x - enemy.x, player.y - enemy.y);
           if (enemy.cooldown === 0) {
-            enemy.cooldown = 1.3;
-            pose(enemy, 'attack', 0.42);
+            enemy.attackStyle = null;
+            enemy.cooldown = details.attackInterval ?? 1.3;
+            pose(enemy, 'attack', details.windup ?? .42);
           }
-        } else moveToward(enemy, player, dt * details.speed, state.zoneInfo);
+        } else moveToward(enemy, player, actionStep * details.speed, state.zoneInfo);
       } else if (!enemy.aggro) {
         enemy.wanderIn -= dt;
         if (!enemy.wander && enemy.wanderIn <= 0) {
@@ -1296,7 +1521,7 @@
           enemy.wanderIn = 2 + Math.random() * 4;
         }
         if (enemy.wander) {
-          moveToward(enemy, enemy.wander, dt * details.speed * 0.42, state.zoneInfo);
+          moveToward(enemy, enemy.wander, actionStep * details.speed * 0.42, state.zoneInfo);
           if (!enemy.moving || distance(enemy, enemy.wander) < 1) enemy.wander = null;
         }
       }
@@ -1311,10 +1536,10 @@
         if (!skill || (skill.strike && !target)) continue;
         if (id === 'heal' && player.hp * 100 >= player.maxHp * AUTO_HEAL_BELOW) continue;
         if (id === 'guard' && (player.guardTime > 0 || !state.enemies.some(enemy =>
-          enemy.hp > 0 && enemy.aggro && distance(player, enemy) <= MELEE_RANGE &&
+          enemy.hp > 0 && enemy.aggro && distance(player, enemy) <= AUTO_GUARD_RANGE &&
           straightPath(player, enemy, state.zoneInfo)))) continue;
-        if (id === 'interrupt' && (target.action !== 'attack' ||
-          target.actionTime <= target.actionDuration * (1 - STRIKE_PHASE))) continue;
+        if (id === 'interrupt' && target.type !== 'dummy' && (target.action !== 'attack' ||
+          target.actionTime <= enemyImpactTime(target))) continue;
         if (castSkill(skill, true)) return;
       }
     }
@@ -1347,7 +1572,7 @@
         .sort((a, b) => distance(player, a) - distance(player, b));
       for (const enemy of candidates) {
         const route = pathTo(player, enemy, state.zoneInfo);
-        if (!route.length || distance(route.at(-1), enemy) > MELEE_RANGE) continue;
+        if (!route.length || distance(route.at(-1), enemy) > BASIC_ATTACK_RANGE) continue;
         selectTarget(enemy.id);
         attack();
         waypoints = route;
@@ -1360,6 +1585,7 @@
       if (!(dt > 0)) return;
       dt = Math.min(dt, 0.08);
       simulationTime += dt;
+      finishCemeteryRespawn();
       for (const skill of state.skills) skill.remaining = Math.max(0, skill.remaining - dt);
       if (state.dead) {
         reviveIn -= dt;
@@ -1373,11 +1599,12 @@
       } else {
         if (state.auto.enabled) {
           if (Math.hypot(axis.x || 0, axis.y || 0) > 0.01) setAuto(false);
-          else updateAuto(dt, autoPaused);
+          else if (player.stunTime === 0) updateAuto(dt, autoPaused);
         }
         updatePlayer(dt, { x: axis.x || 0, y: axis.y || 0 });
-        for (const enemy of state.enemies) {
-          if (state.dead) break;
+        const enemies = state.enemies;
+        for (const enemy of enemies) {
+          if (state.dead || state.enemies !== enemies) break;
           updateEnemy(enemy, dt);
         }
         regeneration += dt;
@@ -1396,14 +1623,16 @@
       ? { x: saved.player.x, y: saved.player.y } : null;
     const spawn = options.spawn || savedPoint;
     enterZone(zone, Array.isArray(spawn) ? { x: spawn[0], y: spawn[1] } : spawn);
-    return { state, update, moveTo, selectTarget, attack, basicAttackRange: MELEE_RANGE,
+    return { state, update, moveTo, selectTarget, attack, basicAttackRange: BASIC_ATTACK_RANGE,
       distanceTo: point => distance(player, point), useSkill, getSlotSkill, assignSkill, clearSkillSlots,
       skillRequirements, isSkillUnlocked, isSkillEnabled, enableSkill, resetLevels, resetCharacter, interact, useItem, equipItem,
-      itemAction, assignItemSlot, acceptQuest, questProgress, buyItem, sellItem, raiseStat, statAllocation, applyStatPoints, combatStats,
+      itemAction, assignItemSlot, discardableItemCount, discardItem, acceptQuest, questProgress, buyItem, sellItem,
+      raiseStat, statAllocation, applyStatPoints, combatStats,
       setAuto, configureAuto, skillCooldownsEnabled, setTrainingCooldowns, skillManaCostsEnabled, setTrainingManaCosts,
       save, exportSave, importSave,
       subscribe(fn) { subscribers.add(fn); return () => subscribers.delete(fn); } };
   }
 
-  window.AyothayaGame = { create, strikePhase: STRIKE_PHASE, autoHealBelow: AUTO_HEAL_BELOW };
+  window.AyothayaGame = { create, strikePhase: STRIKE_PHASE, autoHealBelow: AUTO_HEAL_BELOW,
+    guardDuration: GUARD_DURATION, dashOvershoot: DASH_OVERSHOOT, pretSlam: MONSTERS.pret.slam };
 })();

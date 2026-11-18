@@ -16,8 +16,9 @@
     guard: { duration: .53, colors: ['#52d9c4', '#d9fff1', '#205d64'] },
     heal: { duration: .78, colors: ['#81db63', '#eaffb8', '#3a6232'] },
     dash: { duration: .39, colors: ['#829cff', '#e0f4ff', '#3d4d95'] },
-    thrust: { duration: .32, colors: ['#67caff', '#e3fcff', '#226482'] },
-    interrupt: { duration: .38, colors: ['#ff786e', '#ffe0b2', '#8b353e'] },
+    thrust: { duration: .32, colors: ['#c24677', '#ffe1cc', '#59213e'] },
+    bleed: { duration: .30, colors: ['#b13e63', '#ffadc0', '#602137'] },
+    interrupt: { duration: .38, colors: ['#a88bdf', '#fff3dd', '#4b306b'] },
   };
 
   function attackWeight(progress) {
@@ -660,39 +661,60 @@
     const ctx=canvas.getContext('2d', {alpha:false});
     const maps={
       village:{
-        src:'assets/tha-phraya-east-gate.png',x1:.235,y1:.415,y2:.86,coastal:true,gateLabelDistance:.205,
+        src:'assets/tha-phraya-east-gate.png',x1:.235,y1:.415,y2:.86,coastal:true,
         shore:[[.415,.69],[.431,.65],[.45,.631],[.474,.631],[.52,.684],[.57,.742],
           [.625,.81],[.68,.861],[.735,.902],[.79,.854],[.86,.82]],
         doorways:{
           'east-gate':{x:1556,y:364,rx:31,ry:50,
             clip:[[1532,410],[1532,347],[1538,333],[1554,313],[1574,330],[1582,345],[1582,410]]},
-          'training-gate':{x:278,y:376,rx:34,ry:47,labelBelow:true,height:.125,
+          'training-gate':{x:278,y:376,rx:34,ry:47,
             clip:[[278,329],[301,339],[312,358],[312,393],[300,413],[278,423],[255,413],[244,393],[244,357],[255,338]]}
         }
       },
       ruins:{
-        src:'assets/dong-chedi.png',x1:.196,x2:.918,y1:.433,y2:.884,gateLabelDistance:.199,
-        doorways:{'west-gate':{x:180,y:544,rx:34,ry:58,
-          clip:[[152,597],[152,524],[157,506],[168,494],[181,483],[198,499],[207,520],[207,597]]}},
-        innerGateClip:[[1339,331],[1339,259],[1347,246],[1367,223],[1383,240],[1398,261],[1399,331]]
+        src:'assets/dong-chedi.png',x1:.196,x2:.918,y1:.433,y2:.884,
+        doorways:{
+          'west-gate':{x:180,y:544,rx:34,ry:58,
+            clip:[[152,597],[152,524],[157,506],[168,494],[181,483],[198,499],[207,520],[207,597]]},
+          'inner-gate':{x:1369,y:277,rx:34,ry:58,
+            clip:[[1339,331],[1339,259],[1347,246],[1367,223],[1383,240],[1398,261],[1399,331]]}
+        }
+      },
+      cemetery:{
+        src:'assets/abandoned-cemetery.png',x1:.17,x2:.91,y1:.37,y2:.88,
+        doorways:{'cemetery-exit':{x:170,y:485,rx:41,ry:124,
+          clip:[[132,602],[135,446],[147,397],[177,351],[199,375],[214,423],[191,495],[188,602]]}}
       },
       training:{
-        src:'assets/training-yard.png',x1:.266,x2:.88,y1:.32,y2:.86,gateLabelDistance:.285,
-        doorways:{'training-exit':{x:226,y:405,rx:64,ry:132,labelBelow:true,
+        src:'assets/training-yard.png',x1:.266,x2:.88,y1:.32,y2:.86,
+        doorways:{'training-exit':{x:226,y:405,rx:64,ry:132,
           clip:[[179,512],[181,355],[190,327],[211,295],[232,278],[252,293],[279,328],[292,352],[287,514]]}}
       }
     };
     for(const map of Object.values(maps)) {
       map.image=new Image();
       map.image.src=map.src;
+      for (const doorway of Object.values(map.doorways)) {
+        const xs = doorway.clip.map(([x]) => x);
+        const ys = doorway.clip.map(([, y]) => y);
+        doorway.bounds = { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+      }
     }
     let map=maps.village;
     let approaches=[];
     const vortexSprite=new Image();
     vortexSprite.src='assets/red-vortex.png';
     const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+    const pretSlamEffect = window.AyothayaPretSlamEffect?.create();
     const activeEffects = [];
     const heavyEffect = window.AyothayaHeavyEffect?.create();
+    const sweepEffect = window.AyothayaSweepEffect?.create();
+    const guardEffect = window.AyothayaGuardEffect?.create();
+    const healEffect = window.AyothayaHealEffect?.create();
+    const interrupt = window.AyothayaInterruptEffect;
+    const interruptEffect = interrupt?.create();
+    const piercing = window.AyothayaPiercingEffect;
+    const piercingEffects = { dash: piercing?.create('dash'), thrust: piercing?.create('thrust') };
     const atlas=new Image();
     let drawPlayerSprite=null;
     atlas.addEventListener('load',()=>{
@@ -703,6 +725,8 @@
     rangerSprite.src='assets/ruins-ranger.png';
     const dummySprite=new Image();
     dummySprite.src='assets/training-dummy.png';
+    const pretSprite=new Image();
+    pretSprite.src='assets/pret-boss.png';
     const villageNpcSheet=new Image();
     villageNpcSheet.src='assets/village-npcs.png';
     const npcSprites={
@@ -729,6 +753,7 @@
     const spritesheet={s:[0,0],w:[1,0],e:[2,0],n:[3,0],elder:[0,1],tamarind:[1,1],monkey:[2,1],ghost:[3,1]};
     const bounds={minX:135,maxX:1555,minY:190,maxY:930};
     let width=900,height=506,aspect=width/height,zoom=1,sceneMode=false,zoneId=null,lastTime=0,lastState=null,hitAreas=[];
+    let renderScale=1;
 
     function size() {
       const r=canvas.getBoundingClientRect();
@@ -737,7 +762,9 @@
       const pixelRatio=clamp(window.devicePixelRatio||1,1,1.5);
       width=Math.max(375,Math.min(1720,Math.round(r.width*pixelRatio)));
       height=Math.max(230,Math.round(width/aspect));
-      if (canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+      const pixelWidth=Math.round(width*renderScale),pixelHeight=Math.round(height*renderScale);
+      if (canvas.width!==pixelWidth||canvas.height!==pixelHeight){canvas.width=pixelWidth;canvas.height=pixelHeight;}
+      ctx.setTransform(pixelWidth/width,0,0,pixelHeight/height,0,0);
       ctx.imageSmoothingEnabled=false;
     }
 
@@ -858,7 +885,7 @@
 
     function label(value,x,y,kind,scale){
       if(!value) return;
-      const palette={npc:'#f4e0a3',enemy:'#ffefd4',portal:'#a9dfda',remote:'#d9ebff'};
+      const palette={npc:'#f4e0a3',enemy:'#ffefd4',boss:'#f2c7ff',portal:'#a9dfda',remote:'#d9ebff'};
       ctx.font=`600 ${Math.round(14*scale)}px "Segoe UI", "Leelawadee UI", Tahoma, sans-serif`;
       ctx.textAlign='center';
       ctx.textBaseline='bottom';
@@ -870,33 +897,40 @@
       ctx.fillText(value,x,y);
     }
 
-    function drawPortal(entity,sx,sy,time){
-      const doorway=sceneMode&&map.doorways[entity.id];
-      if(doorway) {
-        const height=scene.h*(doorway.height??map.gateLabelDistance);
-        label(entity.name,sx,doorway.labelBelow ? sy+20*zoom : sy-height,'npc',clamp(zoom,.8,1.18));
-        hitAreas.push({kind:'portal',entity,sx,sy,radius:scene.w*.031,height:height+20*zoom,
-          bottom:doorway.labelBelow ? 23*zoom : 12});
-        return;
-      }
-      const r=Math.max(10,15*zoom);
-      const bob=Math.sin(time*2.2)*2*zoom;
-      ctx.save();
-      const field=ctx.createRadialGradient(sx,sy,1,sx,sy,r*2);
-      field.addColorStop(0,'rgba(101,233,223,.45)');
-      field.addColorStop(1,'rgba(101,233,223,0)');
-      ctx.fillStyle=field;
-      ctx.fillRect(sx-r*2,sy-r*2,r*4,r*4);
-      ctx.strokeStyle='#b9e5ba';
-      ctx.lineWidth=1.5;
-      ctx.beginPath();
-      ctx.ellipse(sx,sy,r,r*.37,0,0,TAU);
-      ctx.stroke();
-      ctx.translate(sx,sy-r*1.25+bob);
-      poly(ctx,[[0,-r*.64],[r*.43,0],[0,r*.42],[-r*.43,0]],'#d3ecd0','#48736d');
-      ctx.restore();
-      label(entity.name,sx,sy-r*2.1+bob,'portal',clamp(zoom,.80,1.18));
-      hitAreas.push({kind:'portal',entity,sx,sy,radius:r*1.4,height:r*2.5});
+    function portalIsOpen(portal, state) {
+      const gate = state.zoneInfo.innerGate;
+      if (portal.id === gate?.id) return gate.open;
+      return !portal.quest || state.quest.status === 'completed';
+    }
+
+    function doorwayOnScreen(doorway) {
+      const { left, right, top, bottom } = doorway.bounds;
+      const scaleX = scene.w / map.image.naturalWidth;
+      const scaleY = scene.h / map.image.naturalHeight;
+      return {
+        x: scene.x + doorway.x * scaleX,
+        y: scene.y + bottom * scaleY,
+        height: (bottom - top) * scaleY,
+        radius: Math.max(doorway.x - left, right - doorway.x) * scaleX,
+      };
+    }
+
+    function drawPortal(entity, sx, sy, time, open) {
+      const doorway = sceneMode && map.doorways[entity.id];
+      const s = clamp(zoom, .8, 1.6);
+      const frame = doorway ? doorwayOnScreen(doorway) : { x: sx, y: sy, height: 32 * s, radius: 16 * s };
+      const { x, y, height, radius } = frame;
+      if (!doorway) drawGateGlow(x, y, time, open);
+      label(open ? entity.name : entity.name + ' · ล็อก', x, y + 22 * s, 'npc', clamp(zoom, .8, 1.18));
+      hitAreas.push({ kind: 'portal', entity, sx: x, sy: y,
+        radius: Math.max(21 * s, radius + 8 * s), height: height + 9 * s, bottom: 25 * s });
+    }
+
+    function clipDoorway(frame, tint) {
+      ctx.translate(scene.x, scene.y);
+      ctx.scale(scene.w / map.image.naturalWidth, scene.h / map.image.naturalHeight);
+      poly(ctx, frame.clip, tint);
+      ctx.clip();
     }
 
     function drawGateVortex(frame,time) {
@@ -904,10 +938,7 @@
       const rotation=reducedMotion.matches ? .36 : -time*1.3;
       const pulse=reducedMotion.matches?1:1+.055*Math.sin(time*2.2);
       ctx.save();
-      ctx.translate(scene.x,scene.y);
-      ctx.scale(scene.w/map.image.naturalWidth,scene.h/map.image.naturalHeight);
-      poly(ctx,frame.clip,'rgba(53,4,26,.84)');
-      ctx.clip();
+      clipDoorway(frame, 'rgba(53,4,26,.84)');
       ctx.translate(frame.x,frame.y);
       ctx.scale(frame.rx*pulse,frame.ry*pulse);
       ctx.save();
@@ -920,39 +951,37 @@
       ctx.restore();
     }
 
-    function drawInnerGate(entity,sx,sy,open) {
-      const clip=sceneMode&&map.innerGateClip;
-      const scale=clamp(zoom,.75,1.8);
-      if(clip&&!open){
-        ctx.save();
-        ctx.translate(scene.x,scene.y);
-        ctx.scale(scene.w/map.image.naturalWidth,scene.h/map.image.naturalHeight);
-        poly(ctx,clip,'rgba(29,24,17,.58)');
-        ctx.clip();
-        ctx.fillStyle='#241b13';
-        for(let x=1340;x<=1398;x+=9) ctx.fillRect(x,222,5,110);
-        for(const y of [247,278,312]) ctx.fillRect(1339,y,61,6);
-        ctx.fillStyle='#8c663f';
-        for(let x=1341;x<=1398;x+=9) ctx.fillRect(x,222,1.5,110);
-        for(const y of [247,278,312]) ctx.fillRect(1339,y,61,1.5);
-        ctx.fillStyle='#b68b46';
-        ctx.fillRect(1365,286,9,8);
-        ctx.fillStyle='#33251a';
-        ctx.fillRect(1369,288,1.5,4);
-        ctx.restore();
+    function drawLockedGate(frame) {
+      const { left, right, top, bottom } = frame.bounds;
+      const width = right - left;
+      const height = bottom - top;
+      const bar = width / 12;
+      ctx.save();
+      clipDoorway(frame, 'rgba(29,24,17,.62)');
+      for (let index = 0; index < 7; index++) {
+        const x = left + width * (index + .5) / 7 - bar / 2;
+        ctx.fillStyle = '#241b13';
+        ctx.fillRect(x, top, bar, height);
+        ctx.fillStyle = '#8c663f';
+        ctx.fillRect(x + bar * .12, top, bar * .25, height);
       }
-      label(open?entity.name:entity.name+' · ล็อก',sx,sy+16*scale,'portal',scale);
-      const artScale=clip?scene.h/map.image.naturalHeight:scale;
-      hitAreas.push({kind:'portal',entity,sx,sy,radius:Math.max(20,artScale*31),height:clip?artScale*110:52*scale,bottom:22*scale});
+      for (const offset of [.25, .53, .80]) {
+        ctx.fillStyle = '#241b13';
+        ctx.fillRect(left, top + height * offset, width, bar);
+        ctx.fillStyle = '#8c663f';
+        ctx.fillRect(left, top + height * offset, width, bar * .25);
+      }
+      ctx.fillStyle = '#b68b46';
+      ctx.fillRect(frame.x - bar, top + height * .59, bar * 2, bar * 1.65);
+      ctx.fillStyle = '#33251a';
+      ctx.fillRect(frame.x - bar * .15, top + height * .59 + bar * .46, bar * .30, bar * .8);
+      ctx.restore();
     }
 
-    function drawGateGlow(portal,time,unlocked) {
-      const [x,y]=project(portal.x,portal.y);
-      const [edgeX]=project(portal.x-portal.reach,portal.y);
-      const [,edgeY]=project(portal.x,portal.y+portal.reach);
-      const s=clamp(zoom,.65,2.5);
-      const rx=Math.max(7*s,Math.abs(edgeX-x));
-      const ry=Math.max(4*s,Math.abs(edgeY-y));
+    function drawGateGlow(x,y,time,unlocked) {
+      const s=clamp(zoom,.8,1.6);
+      const rx=15*s;
+      const ry=5.5*s;
       const pulse=(Math.sin(time*3.1)+1)*.5;
       const color=unlocked?'255,51,77':'255,196,105';
       const rim=unlocked?'#ff9eaa':'#ffd78f';
@@ -988,9 +1017,7 @@
 
     function drawActor(actor,kind,sx,sy,state,time){
       if(kind==='portal'){
-        const gate=state.zoneInfo.innerGate;
-        if(actor.id===gate?.id) drawInnerGate(actor,sx,sy,gate.open);
-        else drawPortal(actor,sx,sy,time);
+        drawPortal(actor,sx,sy,time,portalIsOpen(actor,state));
         return;
       }
       const type=actor.sprite||actor.type||(kind==='npc'?'elder':'player');
@@ -1000,6 +1027,7 @@
       const action=actor.action||'idle';
       const dead=action==='death';
       const attack=action==='attack';
+      const slam=attack && actor.attackStyle==='pret-slam' ? actor.slam : null;
       const dir=(attack&&actor.attackDir)||actor.dir||'s';
       const cast=action==='cast';
       const scale=clamp(zoom,.6,2.4);
@@ -1014,9 +1042,9 @@
       const swing=attack?attackWeight(progress):0;
       const pose=dir==='nw'?'w':dir==='ne'?'e':dir==='sw'?'w':dir==='se'?'e':dir;
       const atlasEntry=spritesheet[type==='player'?pose:type];
-      const baseHeight=kind==='enemy'?(type==='guardian'||type==='dummy'?.9:type==='tamarind'||type==='monkey'?.5:.66):.77;
+      const baseHeight=actor.boss ? 1.92 : kind==='enemy'?(type==='guardian'||type==='dummy'?.9:type==='tamarind'||type==='monkey'?.5:.66):.77;
       const heightOnScreen=spriteSize*baseHeight;
-      const radius=spriteSize*(type==='guardian'?.46:type==='dummy'?.37:kind==='enemy'?.29:.255);
+      const radius=spriteSize*(actor.boss ? .53 : type==='guardian'?.46:type==='dummy'?.37:kind==='enemy'?.29:.255);
       if (state.targetId===actor.id&&kind==='enemy'&&!dead) {
         const t=(Math.cos(time*6)+1)*.5;
         shadow(sx,sy+2,radius+3+2*t,5+1.5*t,'rgba(214,98,53,.40)');
@@ -1028,11 +1056,15 @@
       }
       shadow(sx,sy,Math.max(7,radius*.84),Math.max(2,4*scale));
       if (kind === 'player' && !dead && actor.guardTime > 0) drawGuard(actor, time, unit);
-      const bounce=dead||type==='dummy'?0:attack?Math.max(0,swing)*unit*(kind==='enemy'?7:3)
+      const bounce=dead||slam||type==='dummy'?0:attack?Math.max(0,swing)*unit*(kind==='enemy'?7:3)
         :walking?Math.abs(Math.sin(phase))*2.8*scale:Math.sin(time*2.8+actor.x)*scale*.95;
       ctx.save();
       ctx.translate(Math.round(sx),Math.round(sy-bounce));
       if(dead){ ctx.globalAlpha=.46;ctx.rotate(Math.PI*.43); }
+      else if(slam&&pretSlamEffect){
+        const {stretchX,stretchY}=pretSlamEffect.pose(slam,slam.windup+slam.recovery-actor.actionTime);
+        ctx.scale(stretchX,stretchY);
+      }
       else if(attack){
         const lunge=swing*unit*(actor.attackStyle==='heavy'?12:8);
         ctx.translate(Math.cos(bearing)*lunge,Math.sin(bearing)*lunge);
@@ -1045,7 +1077,8 @@
       const armedPlayer=type==='player'&&drawPlayerSprite;
       const npc=kind==='npc'?npcSprites[actor.id]:null;
       if(armedPlayer) {
-        drawPlayerSprite(ctx,actor,{dir,bearing,walking:walking&&!dead,phase,progress:attack?progress:null,size:spriteSize,heavyEffect});
+        drawPlayerSprite(ctx, actor, { dir, bearing, walking: walking && !dead, phase, progress: attack ? progress : null,
+          size: spriteSize, heavyEffect, piercingEffect: piercingEffects[actor.attackStyle] });
       } else if(npc?.image.complete && npc.image.naturalWidth>=(npc.column+1)*96 && npc.image.naturalHeight===96) {
         const size=Math.round(spriteSize);
         ctx.imageSmoothingEnabled=false;
@@ -1055,6 +1088,11 @@
         const w=Math.round(h*dummySprite.naturalWidth/dummySprite.naturalHeight);
         ctx.imageSmoothingEnabled=false;
         ctx.drawImage(dummySprite,-Math.round(w/2),-h,w,h);
+      } else if(type==='pret' && pretSprite.complete && pretSprite.naturalWidth) {
+        const h=Math.round(heightOnScreen);
+        const w=Math.round(h*pretSprite.naturalWidth/pretSprite.naturalHeight);
+        if(dx<0) ctx.scale(-1,1);
+        ctx.drawImage(pretSprite,-Math.round(w*.43),-h,w,h);
       } else if(type==='guardian' && guardianSprite) {
         const {sprite,anchor}=guardianSprite;
         const w=Math.round(heightOnScreen*sprite.width/sprite.height);
@@ -1080,7 +1118,7 @@
         ctx.drawImage(sprites.get(key),-w/2,-h,w,h);
       }
       ctx.restore();
-      if(attack&&!armedPlayer) drawSlash(sx,sy-heightOnScreen*.49,bearing,progress,unit,kind,actor.attackStyle);
+      if(attack&&!slam&&!armedPlayer) drawSlash(sx,sy-heightOnScreen*.49,bearing,progress,unit,kind,actor.attackStyle);
       if(cast&&!dead&&kind!=='player'){
         ctx.strokeStyle='#c9eccb';
         ctx.lineWidth=1;
@@ -1094,9 +1132,11 @@
       if(dead) return;
       if(kind!=='player'){
         const nameY=sy-heightOnScreen-4*scale;
-        const title=kind==='enemy'&&actor.level?`${actor.name} · Lv.${actor.level}`:actor.name;
+        const title=kind==='enemy'&&actor.level?`${actor.boss?'บอส ':''}${actor.name} · Lv.${actor.level}`:actor.name;
         const nearPlayer = Math.hypot(actor.x - state.player.x, actor.y - state.player.y) <= (aspect < 1.2 ? 152 : 205);
-        if (kind !== 'enemy' || type === 'dummy' || state.targetId === actor.id || nearPlayer) label(title,sx,nameY,kind,clamp(scale,.76,1.10));
+        if (kind !== 'enemy' || actor.boss || type === 'dummy' || state.targetId === actor.id || nearPlayer) {
+          label(title,sx,nameY,actor.boss?'boss':kind,clamp(scale,.76,1.10));
+        }
         const quest=state.trackedQuest;
         if(kind==='npc'&&actor.id===quest?.npcId&&['available','ready'].includes(quest.status)){
           const markerScale=clamp(scale,.85,1.8);
@@ -1164,16 +1204,33 @@
     }
 
     function playSkillEffect(event) {
-      const skill = event.guarded ? 'guard' : event.skill;
+      const skill = event.status === 'bleed' ? 'bleed' : event.guarded ? 'guard' : event.skill;
       const visual = skillEffects[skill];
       if (!visual) return;
-      const heavyImpact = skill === 'heavy' && heavyEffect?.ready && drawPlayerSprite;
-      if (heavyImpact && (event.type !== 'skill-strike' || !event.contact)) return;
+      if (skill === 'guard' && guardEffect?.ready && event.type === 'skill') return;
+      const piercingEffect = piercingEffects[skill];
+      const piercingStrike = piercingEffect?.ready && event.type === 'skill-strike';
+      if (piercingEffect?.ready && (event.type === 'damage' || (skill === 'dash' && piercingStrike && !event.contact))) return;
+      const guardImpact = event.guarded && guardEffect?.ready && event.source;
+      const healBloom = skill === 'heal' && healEffect?.ready && event.type === 'skill';
+      const heavyStrike = skill === 'heavy' && heavyEffect?.ready && drawPlayerSprite;
+      if (heavyStrike && (event.type !== 'skill-strike' || !event.contact)) return;
+      const interruptReady = skill === 'interrupt' && interruptEffect?.ready;
+      const interruptStrike = interruptReady && event.type === 'skill-strike';
+      if (interruptReady && (event.type === 'damage' || (interruptStrike && !event.contact))) return;
+      const sweepTrail = skill === 'sweep' && sweepEffect?.ready && event.type === 'skill-strike';
+      const spriteImpact = heavyStrike || interruptStrike ||
+        (skill === 'sweep' && sweepEffect?.ready && heavyEffect?.ready && event.type === 'damage');
       const charge = event.type === 'skill' && event.windup > 0;
       if (event.type === 'skill' && !charge && skill !== 'guard' && skill !== 'heal') return;
-      const duration = heavyImpact ? window.AyothayaHeavyEffect.impactDuration
+      const duration = sweepTrail ? window.AyothayaSweepEffect.duration
+        : guardImpact ? window.AyothayaGuardEffect.impactDuration
+        : healBloom ? window.AyothayaHealEffect.duration
+        : piercingStrike ? piercing.duration
+        : interruptStrike ? interrupt.impactDuration
+        : spriteImpact ? window.AyothayaHeavyEffect.impactDuration
         : charge ? event.windup : event.type === 'damage' ? .30 : visual.duration;
-      activeEffects.push({ ...event, skill, colors: visual.colors, charge, heavyImpact: Boolean(heavyImpact), duration,
+      activeEffects.push({ ...event, skill, colors: visual.colors, charge, sweepTrail, spriteImpact, guardImpact, healBloom, piercingStrike, duration,
         start: performance.now() / 1000 });
     }
 
@@ -1194,6 +1251,14 @@
       ctx.strokeStyle = colors[1];
       ctx.lineWidth = Math.max(.8, 1.05 * unit);
       ctx.stroke();
+    }
+
+    function drawPretSlam(actor, foreground = false) {
+      const { x, y, actionTime, slam } = actor;
+      const unit = sceneMode ? scene.h / 510 : clamp(zoom, .6, 2.4);
+      const elapsed = slam.windup + slam.recovery - actionTime;
+      const projectSlam = (dx, dy, height = 0) => project(x + dx, y + dy, height);
+      pretSlamEffect?.[foreground ? 'foreground' : 'ground'](ctx, projectSlam, unit, slam, elapsed, reducedMotion.matches);
     }
 
     function glow(point, radius, color) {
@@ -1243,6 +1308,12 @@
     }
 
     function drawGuard(actor, time, unit) {
+      if (guardEffect?.ready) {
+        const [x, y] = project(actor.x, actor.y);
+        const elapsed = window.AyothayaGame.guardDuration - actor.guardTime;
+        guardEffect.drawShield(ctx, elapsed, x, y - 27 * unit, unit, actor.guardTime, reducedMotion.matches);
+        return;
+      }
       const colors = skillEffects.guard.colors;
       const pulse = reducedMotion.matches ? .62 : .59 + .11 * Math.sin(time * 4);
       ctx.save();
@@ -1405,28 +1476,79 @@
       }
     }
 
-    function drawSkillEffects(player, time) {
+    function drawSkillEffects(player, time, behind = false) {
       if (!activeEffects.length) return;
       const unit = sceneMode ? scene.h / 510 : clamp(zoom, .6, 2.4);
       const still = reducedMotion.matches;
       for (let index = activeEffects.length - 1; index >= 0; index--) {
         const effect = activeEffects[index];
+        if (behind && !effect.sweepTrail && !effect.healBloom && !effect.piercingStrike) continue;
+        if (!behind && effect.healBloom) continue;
         const elapsed = Math.max(0, time - effect.start);
         const age = elapsed / effect.duration;
         if (age >= 1) {
           activeEffects.splice(index, 1);
           continue;
         }
-        if (effect.heavyImpact) {
-          const [x, y] = project(effect.contact.x, effect.contact.y);
-          heavyEffect.drawImpact(ctx, elapsed, x, y - 23 * unit, unit);
+        if (effect.healBloom) {
+          const [x, y] = project(player.x, player.y);
+          healEffect.draw(ctx, elapsed, x, y, unit, still);
+          continue;
+        }
+        if (effect.piercingStrike) {
+          const { skill, origin, arrival, contact, range, dir } = effect;
+          const sprite = piercingEffects[skill];
+          const dash = skill === 'dash';
+          const trailHeight = dash ? 23 : 15;
+          const from = project(origin.x, origin.y, trailHeight);
+          if (behind) {
+            let end = dash ? arrival : contact;
+            if (!end) {
+              const [dx, dy] = directions[dir] || directions.s;
+              const reach = range / Math.hypot(dx, dy);
+              end = { x: origin.x + dx * reach, y: origin.y + dy * reach };
+            }
+            sprite.drawTrail(ctx, elapsed, from, project(end.x, end.y, trailHeight), unit, still);
+          } else if (contact) {
+            const aim = project(contact.x, contact.y, trailHeight);
+            const bearing = Math.atan2(aim[1] - from[1], aim[0] - from[0]);
+            const impact = dash ? project(contact.x, contact.y, 19) : aim;
+            sprite.drawImpact(ctx, elapsed, impact, bearing, unit, still);
+          }
+          continue;
+        }
+        if (effect.sweepTrail) {
+          const { origin: { x, y }, range } = effect;
+          const [cx, cy] = project(x, y, 20);
+          const [eastX, eastY] = project(x + range, y, 20);
+          const [southX, southY] = project(x, y + range, 20);
+          const radiusX = Math.hypot(eastX - cx, southX - cx);
+          const radiusY = Math.min(Math.hypot(eastY - cy, southY - cy), radiusX * .62);
+          sweepEffect.draw(ctx, still ? .10 : elapsed, cx, cy, radiusX, radiusY, behind);
+          continue;
+        }
+        if (effect.spriteImpact) {
+          const contact = effect.contact ?? effect;
+          const [x, y] = project(contact.x, contact.y);
+          const scale = effect.skill === 'sweep' ? .78 : 1;
+          const isInterrupt = effect.skill === 'interrupt';
+          const sprite = isInterrupt ? interruptEffect : heavyEffect;
+          sprite.drawImpact(ctx, isInterrupt && still ? .08 : elapsed, x, y - 23 * unit, unit * scale);
+          continue;
+        }
+        if (effect.guardImpact) {
+          const [x, y] = project(effect.x, effect.y);
+          const [sourceX, sourceY] = project(effect.source.x, effect.source.y);
+          const angle = Math.atan2(sourceY - y, sourceX - x);
+          guardEffect.drawImpact(ctx, still ? .08 : elapsed, x + Math.cos(angle) * 26 * unit,
+            y + (Math.sin(angle) * 27 - 27) * unit, unit, sourceX < x);
           continue;
         }
         const motion = still ? .48 : age;
         ctx.save();
         ctx.globalAlpha = (still ? .72 : 1) * (effect.charge ? Math.sin(age * Math.PI) : (1 - age) ** .8);
         if (effect.charge) drawSkillCharge(effect, motion, unit, still);
-        else if (effect.type === 'damage') drawSkillImpact(effect, motion, unit, still);
+        else if (effect.type === 'damage') drawSkillImpact(effect, motion, effect.skill === 'bleed' ? unit * .52 : unit, still);
         else if (effect.skill === 'guard' || effect.skill === 'heal') drawSupportEffect(effect, player, motion, unit, still);
         else if (effect.skill === 'sweep') drawSweep(effect, motion, unit, still);
         else drawDirectedSkill(effect, motion, unit, still);
@@ -1500,9 +1622,11 @@
         for(const portal of portals) {
           const doorway=map.doorways[portal.id];
           if(!doorway) continue;
-          const unlocked=!portal.quest||state.quest.status==='completed';
+          const unlocked=portalIsOpen(portal,state);
           if(unlocked) drawGateVortex(doorway,time);
-          drawGateGlow(portal,time,unlocked);
+          else drawLockedGate(doorway);
+          const {x,y}=doorwayOnScreen(doorway);
+          drawGateGlow(x,y,time,unlocked);
         }
       }
       drawDestination(state.destination,time,state.player);
@@ -1523,12 +1647,20 @@
       add(state.player,'player');
       entries.sort((a,b)=>a.depth-b.depth);
       const models=zone?createModels(ctx,project,camera.yaw):null;
+      const slamming=entries.find(({entity})=>entity.action==='attack' && entity.attackStyle==='pret-slam')?.entity;
+      if(slamming) drawPretSlam(slamming);
+      drawSkillEffects(state.player, time, true);
       for(const {entity,kind,x,y} of entries){
         if(kind!=='scenery') drawActor(entity,kind,x,y,state,time);
         else if(entity.type==='tree'||entity.type==='shrub') drawTree(entity,x,y);
         else models.place(entity,time);
       }
       drawSkillEffects(state.player, time);
+      if(slamming) drawPretSlam(slamming, true);
+      if(slamming && slamming.actionTime>slamming.slam.recovery){
+        const [x,y]=project(slamming.x,slamming.y+slamming.slam.radius*.78);
+        label('ทุบพื้น',x,y,'boss',clamp(zoom,.8,1.1));
+      }
       embers(time,ruins);
       lastTime=time;
       lastState=state;
@@ -1549,10 +1681,12 @@
         y:bounds?clamp(ground.y,bounds.top,bounds.bottom):ground.y,kind:'ground',entity:null };
     }
 
-    function screenPoint(x,y){
-      const r=canvas.getBoundingClientRect();
-      const [sx,sy]=project(x,y);
-      return {x:r.left+sx*r.width/width,y:r.top+sy*r.height/height};
+    function screenPoint(x, y, lift = 0) {
+      const bounds = canvas.getBoundingClientRect();
+      const [sx, sy] = project(x, y);
+      const unit = sceneMode ? scene.h / 510 : clamp(zoom, .6, 2.4);
+      return { x: bounds.left + sx * bounds.width / width,
+        y: bounds.top + (sy - lift * unit) * bounds.height / height };
     }
 
     function drawMinimap(mini,state=lastState){
@@ -1581,11 +1715,12 @@
         c.fillStyle=fill;c.fill();
         if(radius>2){c.lineWidth=1;c.strokeStyle='#25382d';c.stroke();}
       };
-      for(const enemy of state.enemies||[]) if(enemy.visible!==false&&enemy.hp>0) marker(enemy,'#db9261',1.35);
+      for(const enemy of state.enemies||[]) {
+        if(enemy.visible!==false&&enemy.hp>0) marker(enemy,enemy.boss?'#eb9cff':'#db9261',enemy.boss?3.2:1.35);
+      }
       for(const npc of state.npcs||[]) marker(npc,'#efd163',2.1);
       for(const portal of state.portals||[]) {
-        const gate=state.zoneInfo.innerGate;
-        marker(portal,portal.id===gate?.id&&!gate.open?'#e2ad68':'#b8ece3',2.3);
+        marker(portal,portalIsOpen(portal,state)?'#b8ece3':'#e2ad68',2.3);
       }
       for(const other of state.remotePlayers||[]) marker(other,'#a7d9ec',2.1);
       marker(state.player,'#fff4c8',3.2);
@@ -1600,6 +1735,7 @@
     return {
       draw,hit,screenPoint,drawMinimap,relativeAxis,playSkillEffect,
       clearSkillEffects(){activeEffects.length=0;},
+      setRenderScale(scale){renderScale=scale;},
       zoomBy(factor){camera.zoom=clamp(camera.zoom*factor,1,1.83);},
       resetCamera(){camera.zoom=1;camera.yaw=BASE_YAW;}
     };

@@ -7,12 +7,13 @@
     npc: { src: "assets/concepts/npc-concepts.png", sheet: [1774, 887] },
     monster: { src: "assets/concepts/monster-concepts.png", sheet: [1312, 1199] },
   };
+  const pretSlam = window.AyothayaGame.pretSlam;
 
   const actors = [
     {
       id: "one-handed-swordsman", name: "นักดาบมือเดียว", role: "ตัวละครชายในเกม", group: "player",
       src: "assets/sprites.png", sheet: [384, 192], rect: [26, 13, 46, 73],
-      weapon: "rusty_sword", motions: ["idle", "walk", "attack", "heavy"],
+      weapon: "rusty_sword", motions: ["idle", "walk", "attack", "heavy", "sweep", "guard-skill", "heal", "dash", "thrust", "interrupt"],
     },
     {
       id: "khram", name: "คราม", role: "นักดาบฝึกหัด", group: "player", style: "swordsman",
@@ -62,6 +63,12 @@
       height: 1.2, anchor: [0.51, 0.992],
       motions: ["idle", "walk", "attack", "guard", "roar", "hurt", "fall"],
     },
+    {
+      id: "pret-boss", name: "ผีเปรต", role: "บอสป่าช้าวัดร้าง Lv. 24", group: "monster",
+      src: "assets/pret-boss.png", sheet: [1024, 1536], rect: [0, 0, 1024, 1536],
+      height: 1.2, anchor: [0.43, 1],
+      motions: ["idle", "walk", "attack", "pret-slam", "hurt", "fall"],
+    },
   ].map((actor) => ({ ...sheets[actor.group], ...actor }));
 
   const motions = {
@@ -69,6 +76,15 @@
     walk: { id: "walk", name: "เดิน", description: "สลับจังหวะก้าวและถ่ายน้ำหนักอยู่กับที่", duration: 1.1, loop: true },
     attack: { id: "attack", name: "โจมตี", description: "ตั้งท่า พุ่งเข้าหาเป้าหมาย แล้วคืนสู่ท่าพัก", duration: 0.85, loop: false },
     heavy: { id: "heavy", name: "ฟันหนัก", description: "รอยดาบ 5 เฟรม · ประกายปะทะ 4 เฟรม", duration: 0.92, loop: true },
+    sweep: { id: "sweep", name: "กวาดดาบ", description: "รอยกวาด 6 เฟรม · ปะทะรอบตัว", duration: 0.95, loop: true },
+    "guard-skill": { id: "guard-skill", name: "กันภัย", description: "ตราโล่หยกและประกายเมื่อรับการโจมตี", duration: 1.15, loop: true },
+    heal: { id: "heal", name: "รักษาใจ", description: "ใบสมุนไพรกับประกายแสงฟื้นพลัง · 6 เฟรม", duration: 1.12, loop: true },
+    dash: { id: "dash", name: "พุ่งแทงใจ", description: "เส้นพุ่ง 3 เฟรม · ประกายปะทะ 3 เฟรม", duration: 1.05, loop: true },
+    thrust: { id: "thrust", name: "แทงใจดำ", description: "คมแทงและประกายปะทะ · เป้าหมายติดเลือดไหลเมื่อแทงโดน", duration: 1.05, loop: true },
+    interrupt: { id: "interrupt", name: "ฟันสกัด", description: "รอยฟันไขว้และสะเก็ดม่วงเงิน · 6 เฟรม", duration: 1.02, loop: true },
+    "pret-slam": { id: "pret-slam", name: "ทุบพื้น",
+      description: "สไปรต์ชีต 9 เฟรม · แรงกระแทก รอยแตก และฝุ่น · สตัน " + pretSlam.stunTime + " วิ.",
+      duration: pretSlam.windup + pretSlam.recovery + .42, loop: true },
     cast: { id: "cast", name: "ร่ายสกิล", description: "รวบรวมพลังและปล่อยเอฟเฟกต์สกิล", duration: 1.4, loop: false },
     hurt: { id: "hurt", name: "ถูกโจมตี", description: "ชะงักและถอยจากแรงปะทะ", duration: 0.64, loop: false },
     fall: { id: "fall", name: "ล้มลง", description: "เสียหลักและจบท่าที่พื้น", duration: 1.2, loop: false },

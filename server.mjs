@@ -6,19 +6,24 @@ import { networkInterfaces } from "node:os";
 const useLan = process.argv.includes("--lan");
 const port = Number(process.env.PORT ?? 4173);
 const host = useLan ? "0.0.0.0" : "127.0.0.1";
-const files = new Set(["index.html", "styles.css", "ui.js", "game.js", "player-sprite.js", "world.js", "skill-audio.js", "heavy-effect.js",
+const files = new Set(["index.html", "styles.css", "ui.js", "game.js", "player-sprite.js", "world.js", "skill-audio.js", "heavy-effect.js", "sweep-effect.js",
+  "guard-effect.js", "heal-effect.js", "piercing-effect.js", "interrupt-effect.js", "pret-slam-effect.js",
   "preview.html", "preview.css", "preview-data.js", "preview-stage.js", "preview.js",
   "assets/tha-phraya.png", "assets/tha-phraya-east-gate.png", "assets/dong-chedi.png", "assets/player-anchor.png", "assets/sprites.png",
   "assets/ruins-ranger.png", "assets/village-npcs.png", "assets/village-bridge.png", "assets/red-vortex.png",
-  "assets/training-yard.png", "assets/training-dummy.png",
+  "assets/training-yard.png", "assets/training-dummy.png", "assets/abandoned-cemetery.png", "assets/pret-boss.png",
   "assets/inventory-icons.png", "assets/inventory-leather.png", "assets/town-scroll.png", "assets/effects/heavy/sheet.png",
+  "assets/effects/sweep/sheet.png", "assets/effects/guard/sheet.png", "assets/effects/heal/sheet.png",
+  "assets/effects/dash/sheet.png", "assets/effects/thrust/sheet.png", "assets/effects/interrupt/sheet.png",
+  "assets/effects/pret-slam/sheet.png",
   "assets/concepts/player-concepts.png", "assets/concepts/npc-concepts.png",
-  "assets/concepts/monster-concepts.png"]);
+  "assets/concepts/monster-concepts.png", "assets/audio/melee sound.wav", "assets/audio/animal melee sound.wav",
+  "assets/audio/critical__strike4.wav", "assets/audio/heal-rpg.wav", "assets/audio/sword sound.wav"]);
 const mime = { html: "text/html; charset=utf-8", css: "text/css; charset=utf-8",
-  js: "text/javascript; charset=utf-8", png: "image/png" };
+  js: "text/javascript; charset=utf-8", png: "image/png", wav: "audio/wav" };
 const clients = new Set();
 const players = new Map();
-const zoneWidths = new Map([["village", 2080], ["ruins", 1680], ["training", 1680]]);
+const zoneWidths = new Map([["village", 2080], ["ruins", 1680], ["training", 1680], ["cemetery", 1680]]);
 const directions = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
 const actions = new Set(["idle", "walk", "attack", "cast", "hit", "death"]);
 const weapons = new Set(["rusty_sword", "bronze_sword"]);
@@ -74,7 +79,12 @@ async function handle(request, response) {
   if (pathname === "/api/players" && request.method === "GET") return openStream(response);
   if (pathname === "/api/presence" && request.method === "POST") return postPresence(request, response);
   if (request.method !== "GET" && request.method !== "HEAD") return reply(response, 405);
-  const filename = pathname === "/" ? "index.html" : pathname === "/preview" ? "preview.html" : pathname.slice(1);
+  let filename;
+  try {
+    filename = pathname === "/" ? "index.html" : pathname === "/preview" ? "preview.html" : decodeURIComponent(pathname.slice(1));
+  } catch {
+    return reply(response, 400, "Invalid path");
+  }
   if (!files.has(filename)) return reply(response, 404, "Not found");
   const location = new URL(filename, import.meta.url);
   const info = await stat(location).catch(() => null);

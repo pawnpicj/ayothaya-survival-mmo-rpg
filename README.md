@@ -14,11 +14,19 @@
 
 คุยกับลุงขามข้างบันไดวัดที่บ้านท่ามะขามเพื่อรับภารกิจปราบลิงป่า Lv. 1 จำนวน 3 ตัว แล้วกลับมารายงาน เครื่องหมาย **? สีเหลือง** คือมีเควสต์ให้รับ และ **? สีเขียว** คือพร้อมส่งเควสต์ กด **รับเควสต์** หรือ **สำเร็จเควสต์** ในแถบภารกิจเพื่อให้ตัวละครเดินไปคุยกับเจ้าของเควสต์ ในครั้งแรกหน้าต่างจะแสดงรางวัลพร้อมปุ่ม **รับภารกิจ** และ **ไม่รับภารกิจ** แม่ค้าสมุนไพรอยู่หน้าเพิงตลาด เมื่อส่งเควสต์แล้วให้ข้ามสะพานไม้และลอดประตูอิฐทางตะวันออก หรือคลิกประตูดงเจดีย์ร้าง ขากลับให้เดินลอดซุ้มฝั่งซ้ายของดง
 
-ในดงเจดีย์ร้าง คุยกับพรานหม่องเพื่อรับภารกิจกำจัดนางไม้ 10 ตัว และยักษ์ศิลา 5 ตัว แล้วกลับไปรายงานเพื่อเปิดซุ้มประตูชั้นในด้านตะวันออกเฉียงเหนือ
+ในดงเจดีย์ร้าง คุยกับพรานหม่องเพื่อรับภารกิจกำจัดนางไม้ 10 ตัว และยักษ์ศิลา 5 ตัว แล้วกลับไปรายงานเพื่อเปิดซุ้มทางไป **ป่าช้าวัดร้าง** ด้านตะวันออกเฉียงเหนือ
+
+ในป่าช้าวัดร้าง กำจัดวิญญาณเฝ้าหลุมและอารักษ์ป่าช้ารวม **100 ตัว** ฝูงจะหายไป แล้ว **บอสผีเปรต** จะปรากฏที่ลานพิธีเพียงตัวเดียว หลังปราบบอส **10 วินาที** ฝูงจะเกิดใหม่และเริ่มนับรอบถัดไป ดูตัวนับและเวลารอได้จากแถบภารกิจ เกมบันทึกความคืบหน้าตามตัวละคร บอสมีโอกาสดรอปการ์ด **0.025%** ออกจากป่าช้าได้ทางซุ้มฝั่งซ้ายหรือใช้คัมภีร์กลับเมือง
+
+เมื่อผีเปรตเตรียม **ทุบพื้น** จะมีวงเตือนรัศมี **160 หน่วย** รอบตัวบอส ผู้เล่นที่อยู่ในวงตอนปะทะจะติดสตัน **0.08 วินาที** การโจมตีปกติที่โดนมีโอกาส **0.2%** ให้ติดสตัน **0.01 วินาที**
+
+เบี้ยจากการปราบมอนสเตอร์ ส่งภารกิจ และขายของให้ร้านลดลงครึ่งหนึ่งโดยปัดลง ถ้า Base Lv. ของผู้เล่นสูงกว่ามอนสเตอร์ **10–14 เลเวล** จะได้รับ Base EXP และ Job EXP **70%** ของเรตปัจจุบัน ถ้าสูงกว่า **15 เลเวลขึ้นไป** จะไม่ได้ EXP จากการกำจัดตัวนั้น
 
 เข้าลานฝึกผ่านวาร์ปข้างซุ้มฝั่งซ้ายของบ้านท่ามะขาม ลองโจมตีหุ่นไล่กา 3 ตัว ตัวละ 999,999 HP ปุ่ม **คูลดาวน์สกิล** และ **ใช้มานา** สลับเปิดหรือปิดแยกกันได้ภายในลาน เมื่อปิดใช้มานาจะกดสกิลที่ปลดล็อกแล้วได้แม้มี 0 MP และ Auto จะไม่ใช้น้ำอบฟื้นมานา หุ่นแต่ละตัวฟื้น HP เต็มหลังผ่าน 5 วินาทีจากดาเมจครั้งล่าสุด หรือทันทีเมื่อตีจน HP หมด วาร์ปฝั่งซ้ายของลานพากลับบ้านท่ามะขาม
 
 เมื่อเลือกหุ่น แถบเป้าหมายแสดงระยะเส้นตรงถึงหุ่นกับระยะเริ่มโจมตีปกติ ใช้หน่วยพิกัดแผนที่และไม่เปลี่ยนตามการซูม กด **K** ดูระยะเริ่มใช้สกิลหรือรัศมีสกิลรอบตัว
+
+เมื่อกำจัดศัตรูที่มีการ์ดในตารางดรอป เกมจะสุ่มหนึ่งครั้งต่อการกำจัด มอนสเตอร์ทั่วไปมีโอกาส **0.01%** และบอสที่กำหนด `boss: true` มีโอกาส **0.025%** ทั้งสองอัตราเป็นค่าคงที่
 
 เปิด [พรีวิวแอนิเมชัน](preview.html) จากไอคอนเล่นบนแถบเมนูเกมเพื่อดูตัวละคร, NPC และมอนสเตอร์จากชุดคอนเซ็ปต์ใหม่ เลือกท่าแล้วปรับความเร็ว เลื่อนเวลา หรือดูทีละเฟรมได้ รายการนักดาบมือเดียวใช้สไปรต์และท่าถือดาบจากเกม ส่วนตัวละครชุดคอนเซ็ปต์ใช้ภาพมุมเดียวเพื่อทดลองจังหวะและเอฟเฟกต์
 
@@ -26,15 +34,27 @@
 
 ซื้อ **คัมภีร์กลับเมือง** จากแม่ค้าสมุนไพรใบละ **20 เบี้ย** แล้วใส่คัมภีร์ลงช่องลัดหรือกด **ใช้** ในกระเป๋าเพื่อกลับจุดเริ่มต้นของเมืองที่ใกล้ที่สุด ใช้ครั้งละหนึ่งใบ
 
+คลิกขวาที่ไอเทมในกระเป๋าแล้วเลือก **ทิ้ง** ระบุจำนวนและกด **ยืนยันการทิ้ง** เพื่อลบไอเทมออกถาวร เกมจะเก็บชิ้นที่สวมอยู่และดาบฝึกหัดประจำตัวไว้
+
 กด **Auto** เพื่อค้นหามอนสเตอร์และเดินเข้าระยะโจมตี ปุ่มตั้งค่าข้าง Auto ใช้เลือกระยะค้นหาใกล้ กลาง หรือไกล และกำหนดเปอร์เซ็นต์ใช้ยาสมุนไพรกับน้ำอบมนตราจากกระเป๋าแยกกัน ค่าเริ่มต้นคือ HP 50% และมานา 40% ใช้ไอเทมเมื่อค่าต่ำกว่าเปอร์เซ็นต์ที่ตั้งไว้ และตั้ง 0% เพื่อปิดการใช้ไอเทมชนิดนั้น การสั่งเดินเองจะปิด Auto
 
-ในหน้าตั้งค่า **Auto** เลือกสกิล Active ที่เปิดใช้งานแล้วจากดรอปดาวน์ **Skill 1–5** ตามลำดับที่ต้องการให้ Auto ลองใช้ ช่องที่เว้นว่างจะถูกข้าม ระบบจะใช้สกิลที่ปลดล็อกและพร้อมใช้ตามระยะ มานา และคูลดาวน์ สมานแผลทำงานเมื่อ HP ต่ำกว่า 60% ตั้งรับเมื่อมีศัตรูเข้าประชิด และฟันสกัดเมื่อเป้าหมายง้างโจมตี ถ้าไม่มีสกิลที่ใช้ได้ ระบบจะโจมตีปกติ
+ในหน้าตั้งค่า **Auto** เลือกสกิล Active ที่เปิดใช้งานแล้วจากดรอปดาวน์ **Skill 1–5** ตามลำดับที่ต้องการให้ Auto ลองใช้ ช่องที่เว้นว่างจะถูกข้าม ระบบจะใช้สกิลที่ปลดล็อกและพร้อมใช้ตามระยะ มานา และคูลดาวน์ รักษาใจทำงานเมื่อ HP ต่ำกว่า 60% กันภัยทำงานเมื่อมีศัตรูเข้าประชิด และฟันสกัดเมื่อเป้าหมายง้างโจมตีหรือเป็นหุ่นในลานฝึก ถ้าไม่มีสกิลที่ใช้ได้ ระบบจะโจมตีปกติ
 
-นักดาบฝึกหัดถือดาบมือขวาขณะยืน เดิน และโจมตี เมื่อได้ดาบสำริดให้กด **V** เปิดกระเป๋าแล้วสวมเพื่อดูรูปดาบใหม่ในฉาก
+นักดาบฝึกหัดถือดาบมือขวาขณะยืน เดิน และโจมตี เมื่อถึง Base Lv. 10 ให้กด **V** เปิดกระเป๋าแล้วสวมดาบสำริด
 
 กด **K** หรือคลิกไอคอนหนังสือในแถบเมนูด้านบนเพื่อเปิดหน้าต่างสกิล เลือก **เปิดใช้งาน** เมื่อ Base Lv., Job Lv. และค่าสเตตัสถึงเงื่อนไขที่แสดงบนการ์ดสกิลในแท็บ **Active** หรือ **Passive** สกิล Active ที่เปิดแล้วใช้กับปุ่มลัดหรือ Auto ได้ ส่วนสกิล Passive จะเริ่มให้โบนัสทันที ในแท็บ Active ให้เลือกช่อง 1–5 แล้วคลิกสกิลที่เปิดแล้วเพื่อจัดลงช่อง ปุ่ม **ล้างทั้งหมด** ทำให้ช่องลัดทั้ง 5 ว่าง การเปิดใช้งานและการจัดช่องจะบันทึกพร้อมเซฟเกม
 
-เอฟเฟกต์และเสียงสกิลแยกตามท่าและจังหวะปะทะ ใช้ได้ทั้งกดเองและ Auto เสียงเริ่มทำงานหลังคลิกหรือกดปุ่มในเกม กด **H** แล้วเลือก **เสียงสกิล** เพื่อเปิดหรือปิด
+| Base Lv. | สกิลที่ปลดล็อกตามเลเวล |
+| --- | --- |
+| 10 | ฟันหนัก |
+| 15 | กวาดดาบ, กันภัย, รักษาใจ |
+| 20 | พุ่งแทงใจ |
+| 25 | แทงใจดำ |
+| 30 | ฟันสกัด, โจมตีติดเลือด (Passive) |
+
+ฟันสกัดขัดจังหวะและทำให้มอนสเตอร์เดินกับโจมตีช้าลง 30% นาน 4 วินาที เมื่อเปิด Passive โจมตีติดเลือด การโจมตีโดนมีโอกาส 20% ทำให้เลือดไหล 3 วินาที ดาเมจต่อครั้งเท่ากับ 15% ของดาเมจที่ทำได้ การติดซ้ำจะเริ่มนับเวลาใหม่
+
+การโจมตีปกติและสกิลโจมตีของนักรบใช้ไฟล์ `assets/audio/sword sound.wav` เมื่อปะทะ ทั้งแบบกดเองและ Auto เสียงคริติคอลเล่นพร้อมตัวเลขสีทอง เสียงเริ่มหลังคลิกหรือกดปุ่มในเกม กด **Esc** หรือปุ่มตั้งค่าถัดจากปุ่มเต็มจอเพื่อปรับคุณภาพภาพ ความสว่าง ระดับเสียง และเปิดหรือปิดเสียงโจมตีและสกิล การตั้งค่าจะบันทึกในเบราว์เซอร์
 
 ในหน้าสถานะ **B** กด **+** เพื่อจัดแต้มและ **−** เพื่อคืนแต้มที่กำลังจัด จากนั้นกด **ยืนยัน** เพื่อบันทึก
 
@@ -51,13 +71,33 @@
 | คลิก NPC / ประตู หรือ F เมื่ออยู่ใกล้ | พูดคุยหรือเปลี่ยนเขต |
 | V / C / B | กระเป๋า / สมุดภารกิจ / สถานะตัวละคร |
 | ลูกกลิ้ง | ซูมกล้อง |
-| Esc / F11 | ปิดหน้าต่างหรือเลิกล็อกเป้า / เต็มจอ |
+| Esc / F11 | เปิดตั้งค่าหรือปิดหน้าต่าง / เต็มจอ |
 
 ## ทดสอบเกม
 
 ดูรหัส ขั้นตอน และผลที่คาดหวังใน [Test Case](tests/TEST-CASES.md) ชุดอัตโนมัติรันด้วย `node --test tests/game.test.cjs`
 
 ## ภาพต้นฉบับ
+
+- `assets/effects/pret-slam/sheet.png` สไปรต์ชีตท่าทุบพื้นของผีเปรต 9 เฟรม สร้างด้วย ImageGen แบบในตัว
+
+<details>
+<summary>พรอมป์สไปรต์ชีตทุบพื้น</summary>
+
+> Use case: stylized-concept. Production asset for the original Thai fantasy pixel RPG Ayothaya Survival. Generate exactly NINE isolated frames of a single ground slam VFX animation as a SQUARE 3 by 3 transparent sprite sheet. Read in row-major order. No lettering or panel borders. Each frame belongs entirely inside its equal-size square cell with generous clear padding and its SAME pivot at the horizontal center and 66% of the cell height. Same camera angle and same physical scale in all nine cells, never recenter or auto-scale per frame. Fixed three-quarter top-down game view (ground effect roughly twice as wide as deep). VFX concept: a violent cursed EARTH IMPACT at a haunted brick temple in Siam, with glowing scorched cracks and rocky fragmented dust, muted burnt amber and gold hot edges, shadow violet vapor as accent. Classic hand-clustered 32-bit pixel art, crisp chunky controlled detail drawn to read around 176 pixels wide in game, tonal clusters, no motion blur. Show a hard, uneven shockwave kissing the ground, broken and asymmetrical, with pieces thrown outward and lifted above the floor. Layout: Cell 1 compact ivory-hot burst at pivot with tiny rupture; cell 2 sharp low amber fans and first stone pieces with central white core; cell 3 open angular shockwave of glowing heated ground and chunky rising rocks; cell 4 strongest broad rugged burst with branched fissures, dusty purple-brown plumes rising and rock shards; cell 5 a wide low broken advancing wave, fading bright core, falling debris; cell 6 almost full-radius broken fragments and low dust, bright cracks deadening; cell 7 sparse fading smoke plumes, few settled fragments and faint cracks; cell 8 low isolated smoke wisps, dying embers; cell 9 two or three faint last embers and transparent negative space. Peak artwork fills at most 86% of cell width, widest shockwave stays elliptical and grounded. Smooth progression in width, debris trajectories and intensity between consecutive frames. The rocks and dust should read even over a lighter warm earth map. No character, no boss, no weapon, no closed geometrical neon rings, no perfect circles, no target marker, no floor tile or backing surface, no rectangular full-frame overlays, no environment, text, numbers, logos, panels, grid lines, or duplicate effects within a cell. Actual alpha transparency between frames and around each effect.
+
+</details>
+
+- `assets/abandoned-cemetery.png` และ `assets/pret-boss.png` สร้างด้วย ImageGen แบบในตัว
+
+<details>
+<summary>พรอมป์ฉากป่าช้าวัดร้างและบอสผีเปรต</summary>
+
+> Use case: stylized-concept. Create a new wide 16:9 full-bleed playable environment background for Ayothaya Survival, a Thai historical-fantasy pixel RPG. It depicts ป่าช้าวัดร้าง, the cemetery of a ruined Ayutthaya temple. Style reference is the user's cropped orange brick arch amid golden grass: use the same 32-bit detailed hand-clustered pixel-art look and fixed three-quarter overhead camera looking down around 55 degrees, with crisp pixel edges. Use moonlit dusk with warm reddish-orange old Thai brick, olive ground, subtle violet shade and teal overgrowth. A short ruined brick entrance arch by the left edge at about 13% of image width and 65% of image height opens onto an unobstructed earthen path into a wide, almost flat dirt and grass clearing. A weathered low circular brick ritual dais with flat ground in its center sits around 66% from the left, 55% from the top, with clear approaches, for a large boss to later stand on. Put old Thai stupas, little brick memorial shrines and mossy brick wall fragments around the top and outer sides, with mature Thai foliage mixed in only around the edges. Keep the entire middle and lower part from x=17% to 92%, y=47% to 88% spacious and easy to cross, with readable ground so pixel sprites can stand out. Antique Thai architectural silhouettes, decorative cremation chedis at the edge, softly lit playable scene, no horizon or sky. The image is only the empty environment background. No figures, monsters, skeletons, limbs, blood, writing, logos, UI, grid, vignette or border.
+
+> Use case: stylized-concept. Create one genuinely transparent PNG sprite for an original Thai 2.5D pixel RPG, a towering supernatural Thai phi pret (hungry ghost) boss. Whole body in a compact portrait-oriented composition, seen clearly from a three-quarter slightly elevated game angle, facing slightly toward screen right, both feet visible at the same ground level. Striking elongated proportions, tall thin arms with visible claw-like long fingers, hunched shoulders, small ghostly mouth and softly luminous violet eyes, gray-violet skin, ash-black sparse hair swept up, a tattered ankle-length burnt red-and-charcoal sarong, modest cloth wraps, shadowy desaturated lavender coloring and warm amber rim light. Thai folklore fantasy specter, immediately readable as a towering long-limbed figure. Crisp classic 32-bit hand-pixelled art, hard visible clusters, dark selectively outlined silhouette, relatively coarse sprite detail legible when rendered at 110 pixels tall, matching a detailed Thai temple cemetery backdrop. Full unobstructed figure, centered and tightly framed with a little clear transparent padding, no shadow on the ground, no platform, no aura outside silhouette, no glow beyond eyes, no logo, text, border, other character, blood or gore.
+
+</details>
 
 สร้างด้วย ImageGen ใน Codex และใช้แนวทางจาก [AI Game Spritesheets](https://github.com/chongdashu/ai-game-spritesheets) สำหรับการทำภาพอ้างอิงตัวละครหลายทิศและจัดจุดยึดเท้า สไปรต์ในเกมมีท่าหันหลัก 4 ทิศและใช้โค้ดเล่นแอนิเมชันตามสถานะ
 

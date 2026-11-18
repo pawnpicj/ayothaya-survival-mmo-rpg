@@ -12,16 +12,19 @@
   const groupButtons = [...document.querySelectorAll("[data-group]")];
   const groundButtons = [...document.querySelectorAll("[data-ground]")];
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
-  const stepSize = () => motion.id === "heavy" ? 1 / 60 : 1 / 24;
+  const effectStarts = { heavy: .225, sweep: .26, "guard-skill": .62, heal: .30, dash: .24, thrust: .22,
+    interrupt: .22, "pret-slam": window.AyothayaGame.pretSlam.windup + .13 };
+  const stepSize = () => Object.hasOwn(effectStarts, motion.id) ? 1 / 60 : 1 / 24;
   const timeString = (value) => value.toFixed(2) + " วิ";
   const timelineMax = Number(timeline.max);
 
-  let actor = actors[0];
+  const requestedEffect = location.hash === "#guard" ? "guard-skill" : location.hash.slice(1);
+  const showEffect = Object.hasOwn(effectStarts, requestedEffect);
+  let actor = (showEffect && actors.find(person => person.motions.includes(requestedEffect))) || actors[0];
   let group = actor.group;
-  const showHeavy = location.hash === "#heavy";
-  let motion = motions[showHeavy ? "heavy" : actor.motions[0]];
-  let elapsed = showHeavy ? .225 : 0;
-  let playing = !showHeavy && !reduceMotion.matches;
+  let motion = motions[showEffect ? requestedEffect : actor.motions[0]];
+  let elapsed = showEffect ? effectStarts[requestedEffect] : 0;
+  let playing = !showEffect && !reduceMotion.matches;
   let speed = Number(speedControl.value) || 1;
   let zoom = Number(zoomControl?.value) || 1;
   let ground = groundButtons.find((button) => button.getAttribute("aria-pressed") === "true")?.dataset.ground || "dark";

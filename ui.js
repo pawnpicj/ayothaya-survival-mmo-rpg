@@ -5,6 +5,8 @@
   const canvas = $("world");
   const minimap = $("minimap");
   const dialog = $("dialog");
+  const bagContext = $("bag-context");
+  const bagDiscardButton = bagContext.querySelector("button");
   const autoToggle = $("auto-toggle");
   const questTracker = $("quest-tracker");
   const itemShortcuts = [...document.querySelectorAll('[data-action="item-shortcut"]')];
@@ -13,6 +15,22 @@
   const { state } = game;
   const world = window.AyothayaWorld.create(canvas);
   const skillAudio = window.AyothayaSkillAudio?.create();
+  const displayKey = "ayothaya-display-settings";
+  const displayQualities = new Map([
+    ["economy", { label: "ประหยัด", scale: .7 }],
+    ["standard", { label: "มาตรฐาน", scale: 1 }],
+    ["sharp", { label: "คมชัด", scale: 1.25 }],
+  ]);
+  const displaySettings = { quality: "standard", brightness: 100 };
+  const brightnessRange = { min: 70, max: 130 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(displayKey));
+    if (displayQualities.has(saved?.quality)) displaySettings.quality = saved.quality;
+    if (Number.isFinite(saved?.brightness)) {
+      displaySettings.brightness = Math.max(brightnessRange.min, Math.min(brightnessRange.max, saved.brightness));
+    }
+  } catch {}
+  applyDisplaySettings();
   const keys = new Set();
   const skillButtons = [...document.querySelectorAll("[data-skill]")];
   const hits = [];
@@ -84,10 +102,13 @@
     const multiGoalProgress = quest.goals && quest.status === "active";
     text("quest-objective", multiGoalProgress ? game.questProgress(quest) : quest.objective);
     const questAction = questActionLabels[quest.status];
-    text("quest-count", questAction ?? (quest.status === "completed" ? "ส่งแล้ว" : multiGoalProgress ? "" : game.questProgress(quest)));
-    if (questTracker.dataset.status !== quest.status || questTracker.dataset.owner !== quest.npcId) {
+    const questOwner = quest.npcId ?? "";
+    const respawnSeconds = quest.respawnAt ? Math.max(0, Math.ceil((quest.respawnAt - Date.now()) / 1000)) : null;
+    text("quest-count", respawnSeconds !== null ? respawnSeconds + " วิ." :
+      questAction ?? (quest.status === "completed" ? "ส่งแล้ว" : multiGoalProgress ? "" : game.questProgress(quest)));
+    if (questTracker.dataset.status !== quest.status || questTracker.dataset.owner !== questOwner) {
       questTracker.dataset.status = quest.status;
-      questTracker.dataset.owner = quest.npcId;
+      questTracker.dataset.owner = questOwner;
       questTracker.dataset.action = questAction ? "quest-owner" : "quests";
       const owner = state.npcs.find(npc => npc.id === quest.npcId);
       const detail = questAction && owner ? questAction + " · เดินไปหา" + owner.name : "เปิดสมุดภารกิจ";
@@ -112,9 +133,11 @@
 
     const enemy = target();
     setHidden("target", !enemy);
+    setHidden("target-bleed", !enemy?.bleed);
+    setHidden("target-slow", !enemy?.slowTime);
     setHidden("training-range", !training || !enemy);
     if (enemy) {
-      text("target-name", enemy.name);
+      text("target-name", (enemy.boss ? "บอส " : "") + enemy.name);
       text("target-level", enemy.level ? "Lv. " + enemy.level : "");
       text("target-hp-text", fmt(enemy.hp) + " / " + fmt(enemy.maxHp));
       fill("target-hp-fill", enemy.hp, enemy.maxHp);
@@ -240,9 +263,11 @@
     if (selected) {
       const { id, item } = selected;
       const action = game.itemAction(id);
-      detail = '<div><strong>' + escape(item.name) + '</strong><small>' + escape(item.description) + '</small></div>' +
+      const requirement = item.baseLevel ? '<small>ต้องการ Base Lv. ' + item.baseLevel + '</small>' : '';
+      const locked = item.baseLevel > state.player.level;
+      detail = '<div><strong>' + escape(item.name) + '</strong><small>' + escape(item.description) + '</small>' + requirement + '</div>' +
         (selected.equipped ? '<span class="bag-worn">สวมอยู่</span>' : action ?
-          '<button type="button" data-action="' + action + '" data-id="' + id + '">' +
+          '<button type="button" data-action="' + action + '" data-id="' + id + '"' + (locked ? ' disabled' : '') + '>' +
           (action === "equip" ? "สวม" : "ใช้") + '</button>' : '');
     }
     return '<ul class="bag-grid" aria-label="' + (cardsOnly ? "การ์ด" : "ไอเทมในกระเป๋า") + '">' +
@@ -250,6 +275,19 @@
       '<div class="bag-footer"><button type="button" data-action="inventory-sort" aria-pressed="' + sortInventory +
       '">จัดเรียง</button><button type="button" data-action="inventory-cards" aria-pressed="' + cardsOnly +
       '">การ์ด</button><span class="bag-gold">' + skillIcon("coin") + fmt(gold) + ' เบี้ย</span></div>';
+  }
+
+  function discardItemPanel() {
+    const item = state.items[selectedItem];
+    const max = game.discardableItemCount(selectedItem);
+    return '<form id="discard-item-form"><p><strong>' + escape(item.name) +
+      '</strong></p><p class="muted">ไอเทมที่ทิ้งจะถูกลบถาวร</p>' +
+      (max > 1 ? '<label class="bag-discard-quantity"><span>จำนวนที่จะทิ้ง</span>' +
+        '<input type="number" name="quantity" min="1" max="' + max + '" step="1" value="1" required></label>' :
+        '<input type="hidden" name="quantity" value="1">') +
+      (max === 0 ? '<p class="muted">ขณะนี้ไม่มีไอเทมที่ทิ้งได้</p>' : '') +
+      '<div class="dialog-actions"><button type="button" data-action="inventory">ยกเลิก</button>' +
+      '<button type="submit" class="bag-discard-confirm"' + (max === 0 ? ' disabled' : '') + '>ยืนยันการทิ้ง</button></div></form>';
   }
 
   function questRewards(quest, received) {
@@ -418,14 +456,41 @@
       '<ul class="book-catalog">' + cards + '</ul>';
   }
 
+  function applyDisplaySettings() {
+    world.setRenderScale(displayQualities.get(displaySettings.quality).scale);
+    const { brightness } = displaySettings;
+    canvas.style.filter = brightness === 100 ? "" : "brightness(" + brightness + "%)";
+  }
+
+  function settings() {
+    const range = (id, label, value, min, max) =>
+      '<label class="settings-row"><span>' + label + '</span><span class="settings-range">' +
+      '<input type="range" id="' + id + '" min="' + min + '" max="' + max + '" value="' + value +
+      '" aria-valuetext="' + value + '%"><span class="settings-value" aria-hidden="true">' + value + '%</span></span></label>';
+    const qualityOptions = [...displayQualities].map(([id, { label }]) => '<option value="' + id + '"' +
+      (id === displaySettings.quality ? " selected" : "") + ">" + label + "</option>").join("");
+    return '<fieldset class="settings-group"><legend>ภาพ</legend>' +
+      '<label class="settings-row"><span>คุณภาพภาพ</span><select id="display-quality">' + qualityOptions + '</select></label>' +
+      range("display-brightness", "ความสว่าง", displaySettings.brightness, brightnessRange.min, brightnessRange.max) +
+      '</fieldset>' +
+      (skillAudio?.supported ? '<fieldset class="settings-group"><legend>เสียง</legend>' +
+        '<label class="settings-row settings-switch"><span>เสียงโจมตีและสกิล</span>' +
+        '<input type="checkbox" role="switch" id="combat-sound"' + (skillAudio.enabled ? " checked" : "") + '></label>' +
+        range("combat-volume", "ระดับเสียง", Math.round(skillAudio.volume * 100), 0, 100) + '</fieldset>' : "");
+  }
+
   function renderPanel() {
+    bagContext.hidden = true;
     const quest = state.trackedQuest;
-    const titles = { inventory: "กระเป๋าสัมภาระ", quests: "บันทึกภารกิจ", character: "สถานะตัวละคร", help: "วิธีเล่น",
+    const titles = { inventory: "กระเป๋าสัมภาระ", quests: "บันทึกภารกิจ", character: "สถานะตัวละคร", help: "วิธีเล่น", settings: "ตั้งค่า",
       "auto-settings": "ตั้งค่าการเล่นอัตโนมัติ", skills: "สกิล", "reset-levels": "รีเซ็ตเลเวล", "reset-character": "เริ่มตัวละครใหม่",
+      "discard-item": "ทิ้งไอเทม",
       dialogue: dialogue?.npc.name + (dialogue?.questView ? " (ภารกิจ)" : ""), vendor: dialogue?.npc.name };
     const content = {
       inventory,
+      "discard-item": discardItemPanel,
       character,
+      settings,
       "reset-levels": () => '<p>ตั้ง Base Lv. และ Job Lv. เป็น 1 และ EXP ทั้งคู่เป็น 0</p>' +
         '<div class="dialog-actions"><button type="button" data-action="character">กลับ</button>' +
         '<button type="button" data-action="confirm-reset-levels">ยืนยันรีเซ็ตเลเวล</button></div>',
@@ -437,7 +502,7 @@
       quests: () => "<h3>" + escape(quest.title) + "</h3><p>" + escape(quest.description) +
         '</p><p class="panel-summary">' + escape(quest.objective) +
         (quest.status === "active" ? " · " + escape(game.questProgress(quest)) : "") + "</p>" +
-        questRewards(quest, quest.status === "completed") +
+        (quest.rewards ? questRewards(quest, quest.status === "completed") : "") +
         (state.zone !== "training" && questActionLabels[quest.status] ? '<div class="dialog-actions"><button type="button" data-action="quest-owner">' +
           questActionLabels[quest.status] + '</button></div>' : ""),
       help: () => '<dl class="key-list"><dt>คลิกพื้น / WASD</dt><dd>เดินและสำรวจ</dd>' +
@@ -445,10 +510,7 @@
         '<dt>1–5 · K</dt><dd>ใช้สกิล · เปิดหน้าต่างสกิล</dd><dt>F</dt><dd>คุยหรือเข้าเขตใกล้ตัว</dd>' +
         '<dt>V · C · B</dt><dd>กระเป๋า ภารกิจ สถานะ</dd>' +
         '<dt>ลูกกลิ้ง</dt><dd>ซูมกล้อง</dd>' +
-        '<dt>F11</dt><dd>เต็มหน้าจอ</dd></dl>' +
-        (skillAudio?.supported ? '<div class="dialog-actions"><button type="button" data-action="skill-sound" aria-pressed="' +
-          skillAudio.enabled + '">เสียงสกิล <span aria-hidden="true">· ' + (skillAudio.enabled ? 'เปิด' : 'ปิด') +
-          '</span></button></div>' : ''),
+        '<dt>F11</dt><dd>เต็มหน้าจอ</dd><dt>Esc</dt><dd>เปิดตั้งค่าหรือปิดหน้าต่าง</dd></dl>',
       dialogue: npcDialogue,
       vendor: merchant,
     };
@@ -491,6 +553,7 @@
       case "reset-character":
       case "reset-levels":
       case "help":
+      case "settings":
       case "skills":
       case "auto-settings": openPanel(action); return;
       case "quest-owner":
@@ -508,6 +571,13 @@
         }
         return;
       case "inventory-select": selectedItem = id; break;
+      case "inventory-discard":
+        if (game.discardableItemCount(id)) {
+          selectedItem = id;
+          openPanel("discard-item");
+          dialog.querySelector('#discard-item-form button[data-action="inventory"]').focus();
+        }
+        return;
       case "bind-item-slot": game.assignItemSlot(Number(id), selectedItem); break;
       case "clear-item-slot": game.assignItemSlot(Number(id), null); break;
       case "item-shortcut": {
@@ -537,7 +607,6 @@
       case "training-mana":
         if (game.setTrainingManaCosts(!state.trainingManaCosts)) renderHUD();
         return;
-      case "skill-sound": skillAudio.setEnabled(!skillAudio.enabled); break;
       case "confirm-reset-levels":
         game.resetLevels();
         renderHUD();
@@ -618,6 +687,15 @@
     }
   });
   document.addEventListener("submit", (event) => {
+    if (event.target.id === "discard-item-form") {
+      event.preventDefault();
+      const quantity = Number(new FormData(event.target).get("quantity"));
+      if (game.discardItem(selectedItem, quantity)) {
+        openPanel("inventory");
+        renderHUD();
+      } else renderPanel();
+      return;
+    }
     if (event.target.id !== "auto-form") return;
     event.preventDefault();
     const form = new FormData(event.target);
@@ -630,7 +708,59 @@
     dialog.close();
   });
   dialog.addEventListener("close", () => {
-    if (!dialog.open) { panel = null; pendingStats = {}; keys.clear(); }
+    if (!dialog.open) { panel = null; pendingStats = {}; keys.clear(); bagContext.hidden = true; }
+  });
+  dialog.addEventListener("contextmenu", (event) => {
+    const slot = event.target.closest('[data-action="inventory-select"]');
+    if (panel !== "inventory" || !slot) return;
+    event.preventDefault();
+    const { id } = slot.dataset;
+    const item = state.items[id];
+    bagDiscardButton.dataset.id = id;
+    bagDiscardButton.disabled = game.discardableItemCount(id) === 0;
+    const reason = $("bag-context-reason");
+    reason.hidden = !bagDiscardButton.disabled;
+    reason.textContent = state.player.equipment[item.slot] === id ? "กำลังสวมอยู่" :
+      id === "rusty_sword" ? "ดาบประจำตัว" : "ไอเทมนี้ทิ้งไม่ได้";
+    bagContext.hidden = false;
+    const bounds = dialog.getBoundingClientRect();
+    const anchor = slot.getBoundingClientRect();
+    const x = (event.clientX || anchor.left) - bounds.left;
+    const y = (event.clientY || anchor.bottom) - bounds.top;
+    bagContext.style.left = Math.max(7, Math.min(x, dialog.clientWidth - bagContext.offsetWidth - 7)) + "px";
+    bagContext.style.top = Math.max(7, Math.min(y, dialog.clientHeight - bagContext.offsetHeight - 7)) + "px";
+    (bagDiscardButton.disabled ? bagContext : bagDiscardButton).focus({ preventScroll: true });
+  });
+  dialog.addEventListener("pointerdown", (event) => {
+    if (!bagContext.contains(event.target)) bagContext.hidden = true;
+  });
+  $("dialog-content").addEventListener("scroll", () => { bagContext.hidden = true; });
+  dialog.addEventListener("cancel", (event) => {
+    if (!bagContext.hidden) {
+      event.preventDefault();
+      bagContext.hidden = true;
+      dialog.querySelector('[data-action="inventory-select"][data-id="' + bagDiscardButton.dataset.id + '"]')?.focus();
+    } else if (panel === "discard-item") {
+      event.preventDefault();
+      openPanel("inventory");
+    }
+  });
+  dialog.addEventListener("input", ({ target }) => {
+    if (panel !== "settings") return;
+    const { id, value } = target;
+    if (target.type === "range") {
+      target.setAttribute("aria-valuetext", value + "%");
+      target.nextElementSibling.textContent = value + "%";
+    }
+    switch (id) {
+      case "combat-volume": skillAudio.setVolume(Number(value) / 100); return;
+      case "combat-sound": skillAudio.setEnabled(target.checked); return;
+      case "display-quality": displaySettings.quality = value; break;
+      case "display-brightness": displaySettings.brightness = Number(value); break;
+      default: return;
+    }
+    applyDisplaySettings();
+    try { localStorage.setItem(displayKey, JSON.stringify(displaySettings)); } catch {}
   });
   dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
 
@@ -653,7 +783,7 @@
   }, { passive: false });
 
   const shortcuts = { KeyV: "inventory", KeyC: "quests", KeyB: "character", KeyH: "help", KeyK: "skills",
-    Space: "attack", KeyF: "talk", Escape: "clear-target" };
+    Space: "attack", KeyF: "talk", Escape: "settings" };
   const movement = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
   document.addEventListener("keydown", (event) => {
     const { code } = event;
@@ -711,10 +841,13 @@
     } else if (event.type === "damage" && world.screenPoint) {
       world.playSkillEffect(event);
       const label = document.createElement("span");
-      label.className = "damage-number" + (event.enemy ? "" : " hurt");
-      label.textContent = fmt(event.value);
+      const critical = event.enemy && event.critical === true;
+      const kind = event.status === "bleed" ? " bleed" : critical ? " critical" : event.enemy ? "" : " hurt";
+      label.className = "damage-number" + kind + (event.stunTime > 0 ? " stun" : "");
+      label.textContent = fmt(event.value) + (event.stunTime > 0 ? " · สตัน" : "");
       effects.append(label);
-      hits.push({ x: event.x, y: event.y, label, start: performance.now() });
+      const lift = event.skill === "interrupt" ? 48 : 0;
+      hits.push({ x: event.x, y: event.y, label, critical, lift, start: performance.now() });
     } else if (event.type === "zone") {
       world.resetCamera();
       world.clearSkillEffects();
@@ -734,15 +867,16 @@
     world.draw(state, now / 1000);
     for (let index = hits.length - 1; index >= 0; index -= 1) {
       const effect = hits[index];
-      const progress = (now - effect.start) / 680;
+      const progress = (now - effect.start) / (effect.critical ? 840 : 680);
       if (progress > 1) {
         effect.label.remove();
         hits.splice(index, 1);
         continue;
       }
-      const point = world.screenPoint(effect.x, effect.y);
+      const point = world.screenPoint(effect.x, effect.y, effect.lift);
       effect.label.style.left = point.x + "px";
-      effect.label.style.top = (point.y - 35 - 23 * progress) + "px";
+      const height = effect.critical ? 47 : 35;
+      effect.label.style.top = (point.y - height - 23 * progress) + "px";
       effect.label.style.opacity = String(Math.min(1, 2 - 2 * progress));
     }
     if (now - portraitTime > 80) {
