@@ -6,8 +6,9 @@ const { runInNewContext } = require('node:vm');
 
 const sandbox = { window: {}, Math: Object.assign(Object.create(Math), { random: () => 0.65 }) };
 runInNewContext(readFileSync(join(__dirname, '..', 'game.js'), 'utf8'), sandbox, { filename: 'game.js' });
+runInNewContext(readFileSync(join(__dirname, '..', 'preview-data.js'), 'utf8'), sandbox, { filename: 'preview-data.js' });
 
-const { create } = sandbox.window.AyothayaGame;
+const { create, createFrameClock } = sandbox.window.AyothayaGame;
 const saveKey = 'ayothaya-survival-v1';
 const villageComplete = { status: 'completed', count: 3 };
 const ruinsComplete = { status: 'completed', counts: { ghost: 10, guardian: 5 } };
@@ -97,6 +98,127 @@ function clearVillage(game) {
   talk(game, 'elder');
   assert.equal(game.state.quest.status, 'completed');
 }
+
+test('Animation Preview uses live roster, map names, monster stats and active skill rules', () => {
+  const { actors, motionForActor, npcArt } = sandbox.window.AyothayaPreviewData;
+  const { reference } = sandbox.window.AyothayaGame;
+  const fmt = new Intl.NumberFormat('en-US');
+  const roster = new Set();
+  for (const zone of Object.values(reference.zones)) {
+    const kinds = new Set(zone.enemies.map(([kind]) => kind));
+    if (zone.bossType) kinds.add(zone.bossType);
+    for (const kind of kinds) {
+      roster.add(kind);
+      const monster = reference.monsters[kind];
+      const actor = actors.find(entry => entry.kind === kind);
+      assert.equal(actor.name, monster.name);
+      assert.ok(actor.role.includes(zone.name));
+      assert.ok(actor.stats.includes('HP ' + fmt.format(monster.hp)));
+      if (monster.level) assert.ok(actor.role.includes('Lv. ' + monster.level));
+    }
+    for (const npc of zone.npcs) {
+      const art = npcArt[npc.id];
+      const actor = actors.find(entry => entry.id === art.id);
+      assert.equal(actor.name, npc.name);
+      assert.equal(actor.src, art.src);
+      assert.ok(actor.role.includes(zone.name));
+      assert.equal(actor.motions.join(','), 'idle');
+    }
+  }
+  assert.equal(actors.filter(actor => actor.group === 'monster').length, roster.size);
+  const player = actors.find(actor => actor.group === 'player');
+  assert.equal(player.name, reference.player.name);
+  for (const skill of reference.activeSkills) {
+    const motion = motionForActor(player, skill.id === 'guard' ? 'guard-skill' : skill.id);
+    assert.equal(motion.name, skill.name);
+    assert.equal(motion.description, skill.description);
+    assert.ok(motion.stats.includes('Base Lv. ' + skill.baseLevel));
+    assert.ok(motion.stats.includes(skill.cost + ' MP'));
+    assert.ok(motion.stats.includes('คูลดาวน์ ' + skill.cooldown + ' วิ.'));
+    if (skill.strike) {
+      assert.ok(motion.stats.includes(skill.strike.range + ' หน่วย'));
+      assert.ok(motion.stats.includes('ท่าโจมตี ' + skill.strike.duration + ' วิ.'));
+    }
+  }
+});
+
+test('Repeated sword and critical sounds use separate clips at maximum attack speed', () => {
+  const voices = [];
+  class TestAudio {
+    constructor(src) {
+      this.src = decodeURIComponent(src);
+      this.paused = true;
+      this.ended = false;
+      this.rewindsWhilePlaying = 0;
+      this.plays = 0;
+      voices.push(this);
+    }
+    set currentTime(value) {
+      if (value === 0 && !this.paused && !this.ended) this.rewindsWhilePlaying++;
+    }
+    play() {
+      this.paused = false;
+      this.ended = false;
+      this.plays++;
+      return Promise.resolve();
+    }
+    pause() { this.paused = true; }
+  }
+  const audioSandbox = { window: { Audio: TestAudio }, document: { hidden: false } };
+  runInNewContext(readFileSync(join(__dirname, '..', 'skill-audio.js'), 'utf8'), audioSandbox, { filename: 'skill-audio.js' });
+  const audio = audioSandbox.window.AyothayaSkillAudio.create();
+  const criticalHit = { type: 'damage', enemy: true, skill: null, critical: true };
+  for (let hit = 0; hit < 5; hit++) {
+    audio.play(criticalHit, hit * .29);
+    audio.play(criticalHit, hit * .29 + .01);
+  }
+  const critical = voices.filter(voice => voice.src.endsWith('/critical__strike4.wav'));
+  assert.equal(critical.length, 5, 'Five overlapping hits should play while simultaneous hits share one cue');
+  for (let hit = 0; hit < 4; hit++) audio.play({ type: 'damage', enemy: true, skill: null }, hit * .29);
+  const sword = voices.filter(voice => voice.src.endsWith('/sword sound.wav'));
+  assert.equal(sword.length, 3, 'The pool should remain bounded even if the clips never finish');
+  sword[0].ended = true;
+  audio.play({ type: 'skill-strike', contact: true }, 1.2);
+  assert.equal(sword[0].plays, 2, 'A finished voice should be reused');
+  assert.ok(voices.every(voice => voice.rewindsWhilePlaying === 0));
+  audio.setVolume(.3);
+  assert.ok([...critical, ...sword].every(voice => voice.volume === .3));
+  const monster = voices.find(voice => voice.src.endsWith('/animal melee sound.wav'));
+  audio.play({ type: 'damage', enemy: false, area: true }, 2);
+  assert.equal(monster.plays, 0);
+  audio.play({ type: 'damage', enemy: false, area: false }, 2.1);
+  assert.equal(monster.plays, 1);
+  audio.setEnabled(false);
+  assert.ok(voices.every(voice => voice.paused));
+});
+
+test('Preview battle cues use the same events and contact times as the game', () => {
+  const { actors, motions, motionForActor } = sandbox.window.AyothayaPreviewData;
+  const { reference, strikePhase, pretSlam, chalawan, cobraQueen, enemyAttackTells } = sandbox.window.AyothayaGame;
+  const [player] = actors;
+  for (const skill of reference.activeSkills.filter(skill => skill.strike)) {
+    const motion = motionForActor(player, skill.id);
+    const [cast, contact] = motion.sounds;
+    assert.equal(cast.event.type, 'skill');
+    assert.equal(cast.at, 0);
+    assert.equal(contact.event.type, 'skill-strike');
+    assert.equal(contact.event.contact, true);
+    assert.equal(contact.at, skill.strike.duration * strikePhase);
+    assert.equal(contact.at, motion.contactAt);
+  }
+  for (const [id, at, type, style] of [
+    ['pret-slam', pretSlam.windup, 'boss-slam', 'pret-slam'],
+    ['tail-sweep', chalawan.slam.windup, 'boss-slam', 'tail-sweep'],
+    ['venom-pool', cobraQueen.venom.windup, 'venom-splash'],
+    ['monkey-swipe', enemyAttackTells.monkey.windup, 'damage'],
+    ['spirit-swipe', enemyAttackTells.spirit.windup, 'damage'],
+  ]) {
+    const [cue] = motions[id].sounds;
+    assert.equal(cue.at, at);
+    assert.equal(cue.event.type, type);
+    assert.equal(cue.event.style, style);
+  }
+});
 
 test('TC-QUEST-01 | Village quest, combat rewards and level progression', () => {
   const game = create({ storage: memoryStorage() });
@@ -190,6 +312,51 @@ test('TC-MOVE-01 | Direction, speed and stopping for eight movement inputs', () 
     assert.deepEqual({ x: player.x, y: player.y }, stop);
   }
   assert.ok(distances.every((distance) => Math.abs(distance - distances[0]) < 1e-6), 'Diagonal speed should match cardinal speed');
+});
+
+test('The frame clock preserves movement, cooldown and strike timing at 10 to 60 FPS', () => {
+  const results = [];
+  for (const fps of [10, 15, 20, 60]) {
+    const game = fixture({ zone: 'training', enabledSkills: ['heavy'], skillSlots: ['heavy'],
+      player: { level: 10, x: 480, y: 505 } });
+    const clock = createFrameClock();
+    const frames = [];
+    const [dummy] = game.state.enemies;
+    game.subscribe(event => {
+      if (event.type === 'skill-strike' && event.contact) frames.push(game.time);
+    });
+    clock.advance(0, game.update);
+    for (let i = 1; i <= fps; i++) {
+      clock.advance(i * 1000 / fps, dt => game.update(dt, { x: 1, y: 0 }));
+    }
+    assert.ok(Math.abs(game.state.player.x - 645) < 1e-8, 'Should walk 165 units at ' + fps + ' FPS');
+    assert.ok(game.selectTarget(dummy.id));
+    assert.ok(game.useSkill(1));
+    for (let i = fps + 1; i <= fps * 2; i++) clock.advance(i * 1000 / fps, game.update);
+    assert.equal(frames.length, 1);
+    assert.ok(dummy.hp < dummy.maxHp);
+    const cooldown = game.getSlotSkill(1).remaining;
+    assert.ok(Math.abs(cooldown - 2) < 1e-8);
+    results.push({ hitAt: frames[0], cooldown, hp: dummy.hp });
+  }
+  for (const result of results) assert.deepEqual(result, results[0]);
+});
+
+test('The frame clock limits catch-up after a stall and clears elapsed time when reset', () => {
+  const clock = createFrameClock();
+  const steps = [];
+  const step = dt => steps.push(dt);
+  clock.advance(0, step);
+  clock.advance(1100, step);
+  assert.equal(steps.length, 15);
+  clock.advance(1108, step);
+  clock.reset();
+  clock.advance(120000, step);
+  clock.advance(120010, step);
+  assert.equal(steps.length, 15);
+  clock.advance(120017, step);
+  assert.equal(steps.length, 16);
+  assert.ok(steps.every(dt => dt === 1 / 60));
 });
 
 test('TC-MOVE-02 | Walk from the elder to the herbalist with one click', () => {
@@ -437,6 +604,23 @@ test('Pret guarantees one ghost key only when the bag has none', () => {
   }
 });
 
+test('Harbor villagers have reachable dialogue and the merchant buys and sells items', () => {
+  const game = fixture({ zone: 'harbor', harborUnlocked: true, quest: villageComplete, player: { gold: 100 } });
+  const conversations = [];
+  game.subscribe(event => { if (event.type === 'dialog') conversations.push(event); });
+
+  assert.equal(game.buyItem('town_scroll'), false);
+  for (const npcId of ['harbor-dockhand', 'harbor-villager', 'harbor-merchant']) {
+    talk(game, npcId);
+    const npc = game.state.npcs.find(entry => entry.id === npcId);
+    assert.equal(conversations.at(-1).npc.id, npcId);
+    assert.equal(conversations.at(-1).text, npc.dialogue);
+  }
+  assert.equal(conversations.at(-1).npc.type, 'vendor');
+  assert.ok(game.buyItem('town_scroll'));
+  assert.ok(game.sellItem('potion'));
+});
+
 test('The northwestern ruins gate consumes one key, opens the harbor, and stays open across saves', () => {
   const starting = { zone: 'ruins', quest: villageComplete, ruinsQuest: ruinsComplete, player: { x: 320, y: 410 } };
   const locked = fixture(starting);
@@ -598,6 +782,246 @@ test('Travelers can take the return ferry with zero gold or use a town scroll', 
   assert.equal(returning.state.player.gold, 0);
 });
 
+test('Nipa cobras spawn away from the dock, slither after nearby players, bite and respawn', () => {
+  const changes = {
+    zone: 'nipa', harborUnlocked: true, quest: villageComplete,
+    harborQuest: { status: 'completed', count: 1, bossDefeated: true, ferryUsed: true },
+  };
+  const arrived = fixture({ ...changes, player: { x: 770, y: 282 } });
+  tick(arrived, 80);
+  assert.equal(arrived.state.enemies.length, 6);
+  assert.ok(arrived.state.enemies.every(enemy => enemy.type === 'cobra' && !enemy.aggro));
+  assert.ok(arrived.state.enemies.every(enemy => enemy.level === 35 && enemy.maxHp === 450));
+
+  const game = fixture({ ...changes, player: { level: 30, x: 815, y: 425, stats: { STR: 500 } } });
+  const cobra = nearestEnemy(game, 'cobra');
+  const { player } = game.state;
+  const health = player.hp;
+  advanceUntil(game, () => cobra.moving, 'Cobra should slither into bite range');
+  advanceUntil(game, () => cobra.action === 'attack', 'Cobra should start its bite');
+  tick(game, 3);
+  assert.equal(player.hp, health);
+  advanceUntil(game, () => player.hp < health, 'Cobra should deal damage at contact');
+  const gold = player.gold;
+  defeat(game, 'cobra');
+  assert.equal(player.gold - gold, 26);
+  advanceUntil(game, () => cobra.hp === cobra.maxHp, 'Cobra should respawn');
+  assert.deepEqual([cobra.x, cobra.y], [cobra.origin.x, cobra.origin.y]);
+});
+
+test('Cobra poison starts on contact, refreshes without delaying damage, and clears after four ticks', () => {
+  const saved = {
+    zone: 'nipa', harborUnlocked: true, quest: villageComplete,
+    harborQuest: { status: 'completed', count: 1, bossDefeated: true, ferryUsed: true },
+    player: { level: 30, x: 775, y: 515, hp: 500, stats: { VIT: 25 } },
+  };
+  const game = fixture(saved);
+  const { player } = game.state;
+  const bites = [];
+  const poisonHits = [];
+  game.subscribe(event => {
+    if (event.type !== 'damage' || event.enemy) return;
+    (event.status === 'poison' ? poisonHits : bites).push(event.value);
+  });
+  const cobra = nearestEnemy(game, 'cobra');
+  advanceUntil(game, () => cobra.action === 'attack', 'Cobra should prepare to strike');
+  assert.equal(player.poison, null);
+  advanceUntil(game, () => bites.length === 1, 'Bite should apply poison');
+  assert.equal(player.bleed, null);
+  assert.equal(player.poison.ticksLeft, 4);
+  tick(game, 19);
+  assert.equal(poisonHits.length, 0);
+  advanceUntil(game, () => poisonHits.length === 1, 'The first poison tick should land');
+  const nextTick = player.poison.nextTick;
+  advanceUntil(game, () => bites.length === 2, 'The second bite should refresh poison');
+  assert.equal(player.poison.nextTick, nextTick);
+  assert.equal(player.poison.ticksLeft, 4);
+  Object.assign(player, { x: 850, y: 232 });
+  advanceUntil(game, () => player.poison === null, 'Poison should wear off away from the cobra');
+  assert.equal(bites.length, 2);
+  assert.deepEqual(poisonHits, Array(5).fill(Math.round(bites[0] * .10)));
+
+  const dodging = fixture(saved);
+  const attacker = nearestEnemy(dodging, 'cobra');
+  advanceUntil(dodging, () => attacker.action === 'attack', 'Cobra should prepare to strike again');
+  Object.assign(dodging.state.player, { x: 850, y: 232 });
+  tick(dodging, 20);
+  assert.equal(dodging.state.player.poison, null);
+
+  const dying = fixture(saved);
+  advanceUntil(dying, () => Boolean(dying.state.player.poison), 'A cobra bite should poison the player');
+  Object.assign(dying.state.player, { x: 850, y: 232, hp: 1 });
+  advanceUntil(dying, () => dying.state.dead, 'Poison can defeat the player');
+  assert.equal(dying.state.player.poison, null);
+});
+
+const nipaQueenSave = {
+  zone: 'nipa', harborUnlocked: true, quest: villageComplete,
+  harborQuest: { status: 'completed', count: 1, bossDefeated: true, ferryUsed: true },
+  player: { x: 770, y: 282, level: 35, hp: 500, stats: { VIT: 20 } },
+};
+
+test('TC-STORY-01 | The ferry leads to Kru Khem and the recruit trials award a badge once', () => {
+  const harborSave = {
+    ...nipaQueenSave, zone: 'harbor', ruinsQuest: ruinsComplete,
+    player: { x: 995, y: -42, hp: 500, gold: 100, level: 35, jobLevel: 20, classTier: 2,
+      stats: { STR: 100, VIT: 50, AGI: 30 } },
+  };
+  const locked = fixture({
+    ...harborSave, harborQuest: { status: 'active', count: 0 },
+  });
+  assert.ok(locked.interact('harbor-boarding'));
+  advanceUntil(locked, () => !locked.state.destination, 'Should reach the locked ferry');
+  assert.equal(locked.boardFerry('harbor-boarding'), false, 'The harbor story unlocks the ferry');
+
+  const legacy = JSON.parse(fixture(harborSave).exportSave());
+  delete legacy.nipaQuest;
+  const game = create({ storage: memoryStorage(JSON.stringify(legacy)) });
+  let dialogue;
+  game.subscribe(event => { if (event.type === 'dialog') dialogue = event; });
+  assert.equal(game.state.trackedQuest, game.state.nipaQuest);
+  assert.equal(game.acceptQuest(), false, 'Accepting requires talking to Kru Khem');
+  talk(game, 'harbor-master');
+  assert.equal(dialogue.questView, 'challenge', 'Old saves keep the optional Chalawan rematch');
+  talk(game, 'harbor-villager');
+  assert.equal(dialogue.questView, undefined, 'Mae Bua keeps her village dialogue');
+  talk(game, 'harbor-boarding');
+  assert.ok(game.boardFerry('harbor-boarding'));
+  assert.equal(game.state.trackedQuest, game.state.nipaQuest);
+  talk(game, 'recruit-trainer');
+  assert.equal(dialogue.questView, 'offer');
+  assert.equal(dialogue.quest.goals.cobra, 10);
+  assert.equal(dialogue.quest.goals.cobra_queen, 1);
+  assert.ok(game.acceptQuest());
+
+  game.state.queenSpawnAt = Date.now() - 1;
+  tick(game);
+  const queen = nearestEnemy(game, 'cobra_queen');
+  Object.assign(game.state.player, { x: queen.x - 60, y: queen.y });
+  queen.hp = 1;
+  defeat(game, 'cobra_queen');
+  assert.equal(game.state.nipaQuest.status, 'active', 'The boss can count before the regular snakes');
+  assert.equal(game.state.nipaQuest.counts.cobra_queen, 1);
+
+  const resumed = create({ storage: memoryStorage(game.exportSave()) });
+  assert.equal(resumed.state.nipaQuest.counts.cobra_queen, 1);
+  for (let i = 0; i < 10; i++) {
+    assert.equal(resumed.state.nipaQuest.status, 'active');
+    advanceUntil(resumed, () => Boolean(nearestEnemy(resumed, 'cobra')), 'A regular cobra should respawn');
+    const cobra = nearestEnemy(resumed, 'cobra');
+    Object.assign(resumed.state.player, { x: cobra.x - 58, y: cobra.y });
+    cobra.hp = 1;
+    defeat(resumed, 'cobra');
+    assert.equal(resumed.state.nipaQuest.counts.cobra, i + 1);
+  }
+  assert.equal(resumed.state.nipaQuest.status, 'ready');
+  assert.ok(resumed.importSave(resumed.exportSave()));
+  const { player, nipaQuest } = resumed.state;
+  player.xp = 0;
+  player.jobXp = 0;
+  const before = { gold: player.gold, elixir: player.inventory.elixir };
+  let reward;
+  resumed.subscribe(event => { if (event.type === 'dialog') reward = event; });
+  talk(resumed, 'recruit-trainer');
+  assert.equal(nipaQuest.status, 'completed');
+  assert.equal(reward.questView, 'reward');
+  assert.match(reward.text, /ผ่านการทดสอบเป็นทหารใหม่/u);
+  assert.equal(player.gold, before.gold);
+  assert.equal(player.inventory.elixir, before.elixir);
+  assert.equal(player.inventory.recruit_badge, 1);
+  assert.equal(player.xp, 450);
+  assert.equal(player.jobXp, 225);
+  assert.equal(resumed.discardItem('recruit_badge', 1), false);
+  const finished = create({ storage: memoryStorage(resumed.exportSave()) });
+  talk(finished, 'recruit-trainer');
+  assert.equal(finished.state.nipaQuest.status, 'completed');
+  assert.equal(finished.state.player.gold, player.gold);
+  assert.equal(finished.state.player.inventory.recruit_badge, 1);
+  assert.equal(finished.state.player.xp, 450);
+  assert.equal(finished.state.player.jobXp, 225);
+});
+
+test('TC-STORY-02 | The former Nipa quest keeps its kills and still requires all ten cobras', () => {
+  for (const status of ['active', 'ready', 'completed']) {
+    const game = fixture({
+      ...nipaQueenSave, nipaQuest: { status, counts: { cobra: 6, cobra_queen: 1 } },
+    });
+    assert.equal(game.state.nipaQuest.status, 'active');
+    assert.equal(game.state.nipaQuest.counts.cobra, 6);
+    assert.equal(game.state.nipaQuest.counts.cobra_queen, 1);
+    talk(game, 'recruit-trainer');
+    assert.equal(game.state.nipaQuest.status, 'active');
+    assert.equal(game.state.player.inventory.recruit_badge, undefined);
+  }
+});
+
+test('Cobra queen spawns once at a random site and preserves its delayed respawn across saves', () => {
+  let now = Date.now();
+  const previousRandom = sandbox.Math.random;
+  sandbox.Date = { now: () => now };
+  try {
+    const first = fixture(nipaQueenSave);
+    const deadline = first.state.queenSpawnAt;
+    assert.ok(deadline >= now + 25000 && deadline <= now + 55000);
+    now = deadline - 1;
+    tick(first);
+    assert.equal(nearestEnemy(first, 'cobra_queen'), undefined);
+    now = deadline;
+    tick(first, 20);
+    const queen = nearestEnemy(first, 'cobra_queen');
+    assert.deepEqual([queen.x, queen.y], [1060, 615]);
+    assert.equal(first.state.enemies.filter(enemy => enemy.boss).length, 1);
+
+    Object.assign(first.state.player, { x: queen.x - 60, y: queen.y });
+    queen.hp = 1;
+    assert.ok(first.selectTarget(queen.id));
+    assert.ok(first.attack());
+    advanceUntil(first, () => queen.hp === 0, 'Queen should fall');
+    const respawn = first.state.queenSpawnAt;
+    assert.ok(respawn >= now + 90000 && respawn <= now + 150000);
+    now = respawn - 1;
+    const restored = create({ storage: memoryStorage(first.exportSave()) });
+    tick(restored);
+    assert.equal(nearestEnemy(restored, 'cobra_queen'), undefined);
+    now = respawn;
+    sandbox.Math.random = () => .01;
+    tick(restored);
+    assert.deepEqual(Object.values(nearestEnemy(restored, 'cobra_queen').origin), [455, 605]);
+  } finally {
+    delete sandbox.Date;
+    sandbox.Math.random = previousRandom;
+  }
+});
+
+test('Cobra queen locks the venom warning to its cast target and only hurts players inside the active pool', () => {
+  const game = fixture({ ...nipaQueenSave, queenSpawnAt: Date.now() - 1 });
+  tick(game);
+  const queen = nearestEnemy(game, 'cobra_queen');
+  const { venom } = sandbox.window.AyothayaGame.cobraQueen;
+  const { player } = game.state;
+  const aimed = { x: queen.x, y: queen.y - 145 };
+  Object.assign(player, aimed);
+  const damage = [];
+  game.subscribe(event => {
+    if (event.type === 'damage' && event.status === 'poison') damage.push(event.value);
+  });
+  advanceUntil(game, () => queen.attackStyle === venom.style, 'Queen should start the warning');
+  assert.deepEqual([queen.venomTarget.x, queen.venomTarget.y], [aimed.x, aimed.y]);
+  const outside = { x: aimed.x - venom.radius - 10, y: aimed.y };
+  Object.assign(player, outside);
+  tick(game, 20);
+  assert.equal(game.state.venomPool, null);
+  advanceUntil(game, () => Boolean(game.state.venomPool), 'Poison should land at the warning location');
+  assert.deepEqual([game.state.venomPool.x, game.state.venomPool.y], [aimed.x, aimed.y]);
+  assert.equal(damage.length, 0);
+  Object.assign(player, aimed);
+  advanceUntil(game, () => damage.length === 1, 'Pool should tick again');
+  assert.equal(damage[0], Math.round(player.maxHp * .14));
+  Object.assign(player, outside);
+  advanceUntil(game, () => game.state.venomPool === null, 'Pool should expire');
+  assert.equal(damage.length, 1);
+});
+
 test('Harbor quest imports restore pickup and fight and preserve boarding for existing completions', () => {
   const changes = {
     zone: 'harbor', harborUnlocked: true, quest: villageComplete, ruinsQuest: ruinsComplete,
@@ -630,17 +1054,19 @@ test('Chalawan signals its sweep before hitting and the player can dodge outside
   for (const dodge of [false, true]) {
     const game = encounter();
     const [boss] = game.state.enemies;
-    let impact = false;
+    let impact;
     const hits = [];
     game.subscribe(event => {
-      if (event.type === 'boss-slam') impact = true;
-      if (event.type === 'damage' && !event.enemy) hits.push(event.value);
+      if (event.type === 'boss-slam') impact = event.style;
+      if (event.type === 'damage' && !event.enemy) hits.push(event);
     });
     advanceUntil(game, () => boss.action === 'attack' && boss.attackStyle === 'tail-sweep', 'Tail sweep should wind up');
     assert.equal(hits.length, 0);
     if (dodge) tick(game, 21, { x: 1, y: 0 });
     advanceUntil(game, () => impact, 'The telegraphed sweep should resolve');
+    assert.equal(impact, 'tail-sweep');
     assert.equal(hits.length, dodge ? 0 : 1);
+    assert.ok(hits.every(hit => hit.area === true));
     assert.equal(game.state.player.bleed, null, 'The tail sweep does not apply bleed');
   }
 });
@@ -764,14 +1190,15 @@ test('Pret slam warns before hitting in all directions and stuns exactly 0.08 se
 test('Pret slam misses after the player leaves its warning ring and can be interrupted', () => {
   const dodge = pretEncounter(90);
   const boss = dodge.state.enemies.find(enemy => enemy.boss);
-  let impacts = 0;
-  dodge.subscribe(event => { if (event.type === 'boss-slam') impacts++; });
+  const impacts = [];
+  dodge.subscribe(event => { if (event.type === 'boss-slam') impacts.push(event.style); });
   const { player } = dodge.state;
   const hp = player.hp;
   advanceUntil(dodge, () => boss.action === 'attack' && boss.attackStyle === 'pret-slam', 'Slam should start');
   tick(dodge, 12, { x: -1, y: 0 });
   assert.ok(boss.x - player.x > 160);
-  advanceUntil(dodge, () => impacts === 1, 'Slam should still resolve after the dodge', 20);
+  advanceUntil(dodge, () => impacts.length === 1, 'Slam should still resolve after the dodge', 20);
+  assert.deepEqual(impacts, ['pret-slam']);
   assert.equal(player.hp, hp);
   assert.equal(player.stunTime, 0);
 
@@ -1413,6 +1840,25 @@ test('TC-MOB-02 | Monster attack windup, damage, cooldown and dodging before imp
   assert.equal(player.hp, hp, 'Stepping out of reach should dodge the swing');
 });
 
+test('Monkey and forest-spirit warning windows match the damage and dodge boundaries', () => {
+  const { enemyAttackTells } = sandbox.window.AyothayaGame;
+  for (const [type, tell, damage] of [['monkey', enemyAttackTells.monkey, 7], ['ghost', enemyAttackTells.spirit, 10]]) {
+    for (const outside of [false, true]) {
+      const game = monsterEncounter(type, 28);
+      const { player, enemies: [enemy] } = game.state;
+      advanceUntil(game, () => enemy.action === 'attack', type + ' should telegraph an attack');
+      assert.equal(enemy.attackTell, tell);
+      assert.equal(enemy.actionDuration, tell.duration);
+      const hp = player.hp;
+      player.x = enemy.x - tell.radius - (outside ? 1 : -1);
+      tick(game, Math.round(tell.windup / .05) - 1);
+      assert.equal(player.hp, hp, 'The warning should precede damage');
+      tick(game, 2);
+      assert.equal(player.hp, hp - (outside ? 0 : damage));
+    }
+  }
+});
+
 test('TC-MOB-03 | Monsters stop chasing at a wall or after the player escapes', () => {
   const blocked = monsterEncounter('guardian', 75, {
     obstacles: [{ x: 1298, y: 345, w: 20, h: 70 }],
@@ -1556,6 +2002,44 @@ test('Auto can practice Interrupt on stationary training dummies', () => {
   advanceUntil(game, () => Boolean(contact), 'Auto should land Interrupt on a training dummy');
   assert.equal(contact.x, game.state.enemies[0].x);
   assert.equal(contact.y, game.state.enemies[0].y);
+});
+
+test('Auto closes to a ready short-range skill and can cast again at high ASPD', () => {
+  for (const [id, range, gap] of [['heavy', 90, 160], ['heavy', 90, 95], ['interrupt', 66, 160]]) {
+    const game = fixture({ zone: 'training', enabledSkills: [id], trainingManaCosts: false,
+      player: { ...trainedPlayer, x: 640 - gap, y: 505, mp: 0, stats: { ...trainedPlayer.stats, AGI: 18 } } });
+    const [dummy] = game.state.enemies;
+    const casts = [];
+    game.subscribe(event => {
+      if (event.type === 'skill' && event.skill === id) casts.push(game.distanceTo(dummy));
+    });
+    game.configureAuto({ skillIds: [id], range: 'medium' });
+    game.setAuto(true);
+    tick(game, 300);
+    assert.ok(casts.length >= 2, id + ' from ' + gap + ' should cast again after cooldown');
+    assert.ok(casts.every(gapAtCast => gapAtCast <= range && gapAtCast >= range - 1.01));
+  }
+});
+
+test('Auto falls back to basic range while a short-range skill lacks mana', () => {
+  const game = fixture({ zone: 'training', enabledSkills: ['heavy'],
+    player: { ...trainedPlayer, x: 545, y: 505, mp: 0 } });
+  const [dummy] = game.state.enemies;
+  game.configureAuto({ skillIds: ['heavy'], mpBelow: 0 });
+  game.setAuto(true);
+  advanceUntil(game, () => dummy.hp < dummy.maxHp, 'Basic attack should hit at distance 95');
+  assert.equal(game.distanceTo(dummy), 95);
+});
+
+test('Auto Guard covers the attack range of a boss beyond the older fixed distance', () => {
+  const game = fixture({ zone: 'cemetery', quest: villageComplete, ruinsQuest: ruinsComplete, cemeteryKills: 100,
+    enabledSkills: ['guard'], player: { ...trainedPlayer, x: 1019, y: 365 } });
+  const [boss] = game.state.enemies;
+  boss.slamCooldown = boss.slam.cooldown;
+  game.configureAuto({ skillIds: ['guard'] });
+  game.setAuto(true);
+  advanceUntil(game, () => game.state.player.guardTime > 0, 'Guard should activate against Pret');
+  assert.equal(game.distanceTo(boss), 56);
 });
 
 test('TC-SAVE-01 | Legacy and damaged saves, and incomplete ruins progress', () => {
@@ -1713,6 +2197,34 @@ test('TC-TRAIN-03 | Mana toggle applies to manual and automatic skills in the ya
   state.player.mp = 5;
   assert.ok(game.useSkill(1));
   assert.equal(state.player.mp, 0);
+});
+
+test('The training rabbit visits its full route, rests, and reverses its facing', () => {
+  const game = fixture({ zone: 'training' });
+  const [rabbit] = game.state.wildlife;
+  const visited = new Set();
+  const facings = new Set();
+  const initialPosition = { x: rabbit.x, y: rabbit.y };
+  assert.equal(game.setAuto(true), true);
+  assert.equal(game.selectTarget(rabbit.type), false);
+  game.setAuto(false);
+
+  for (let i = 0; i < 2400; i++) {
+    const before = { x: rabbit.x, y: rabbit.y };
+    game.update(.05);
+    if (rabbit.hop) facings.add(rabbit.facingRight);
+    if (rabbit.rest > 0) {
+      assert.equal(rabbit.phase, 0);
+      assert.deepEqual({ x: rabbit.x, y: rabbit.y }, before);
+      const reached = rabbit.route.findIndex(([x, y]) => Math.hypot(rabbit.x - x, rabbit.y - y) < .01);
+      if (reached >= 0) visited.add(reached);
+    }
+    assert.ok(rabbit.x >= 135 && rabbit.x <= 1555 && rabbit.y >= 190 && rabbit.y <= 930);
+  }
+  assert.equal(visited.size, rabbit.route.length);
+  assert.equal(facings.size, 2);
+  const [newRabbit] = fixture({ zone: 'training' }).state.wildlife;
+  assert.deepEqual({ x: newRabbit.x, y: newRabbit.y }, initialPosition);
 });
 
 test('TC-TRAIN-04 | Each dummy refills five seconds after its latest hit', () => {

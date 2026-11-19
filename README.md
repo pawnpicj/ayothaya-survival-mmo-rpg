@@ -28,6 +28,12 @@
 
 หลังส่งเควสต์แล้ว คลิก **จุดขึ้นเรือ** ที่ศาลาริมน้ำ หรือกด **F** เมื่ออยู่ใกล้ แล้วเลือก **ขึ้นเรือ** เพื่อไป **ป่าจากน้ำกร่อย** ขาไปเที่ยวแรกฟรี เที่ยวถัดไป 20 เบี้ย จากปลายทางใช้ป้าย **เรือกลับท่าข้าม** ขากลับฟรีทุกเที่ยว
 
+หลังจบ **เรือเที่ยวสุดท้าย** ให้ขึ้นเรือไป **ป่าจากน้ำกร่อย** แล้วคุยกับ **ครูเข้ม** ครูฝึกทหารใหม่ที่อยู่ใกล้ท่าน้ำเพื่อรับ **ทดสอบการเป็นทหาร** กำจัดงูเห่า 10 ตัวและนางพญางูเห่า 1 ตัว สลับลำดับได้ จากนั้นกลับไปรายงานครูเข้มที่เดิมเพื่อรับ **ป้ายรับรองเป็นทหารใหม่ 1 ชิ้น 450 Base EXP และ 225 Job EXP** เซฟจากบทก่อนเก็บจำนวนที่กำจัดไว้และนับต่อจนครบเป้าใหม่
+
+บนลานดินในป่าจากน้ำกร่อยมี **งูเห่า Lv. 35 (HP 450)** จำนวน 6 ตัว กระจายห่างจากจุดลงเรือ เมื่อเข้าใกล้ งูจะเลื้อยเข้าหา ง้างหัว แล้วฉก ผู้เล่นที่ถูกฉกจะติดพิษ เสีย HP ทุกวินาที 4 ครั้ง ครั้งละ 10% ของดาเมจจากการฉก (ปัดเป็นจำนวนเต็ม ขั้นต่ำ 1 HP) การฉกซ้ำเติมจำนวนครั้งกลับเป็น 4 และคงจังหวะดาเมจพิษเดิม
+
+**นางพญางูเห่า Lv. 40 (HP 6,800)** สุ่มเกิดหนึ่งใน 4 จุดหลังเข้าป่าจากน้ำกร่อยครั้งแรก 25–55 วินาที หลังปราบแล้วสุ่มเกิดใหม่ใน 90–150 วินาที ท่า **พ่นพิษลงพื้น** ล็อกพื้นที่ ณ ตำแหน่งผู้เล่นตอนเริ่มง้าง วงเตือนนาน 1.35 วินาที และบ่อพิษอยู่ 6 วินาที ผู้เล่นที่อยู่ในบ่อเสีย 14% ของ HP สูงสุดเมื่อพิษตกถึงพื้นและทุก 0.6 วินาทีที่จังหวะดาเมจ ถอยออกนอกวงเพื่อหยุดรับดาเมจจากบ่อ
+
 เมื่อผีเปรตเตรียม **ทุบพื้น** จะมีวงเตือนรัศมี **160 หน่วย** รอบตัวบอส ผู้เล่นที่อยู่ในวงตอนปะทะจะติดสตัน **0.08 วินาที** การโจมตีปกติที่โดนมีโอกาส **0.2%** ให้ติดสตัน **0.01 วินาที**
 
 เบี้ยจากการปราบมอนสเตอร์ ส่งภารกิจ และขายของให้ร้านลดลงครึ่งหนึ่งโดยปัดลง ถ้า Base Lv. ของผู้เล่นสูงกว่ามอนสเตอร์ **10–14 เลเวล** จะได้รับ Base EXP และ Job EXP **70%** ของเรตปัจจุบัน ถ้าสูงกว่า **15 เลเวลขึ้นไป** จะไม่ได้ EXP จากการกำจัดตัวนั้น
@@ -38,7 +44,9 @@
 
 เมื่อกำจัดศัตรูที่มีการ์ดในตารางดรอป เกมจะสุ่มหนึ่งครั้งต่อการกำจัด มอนสเตอร์ทั่วไปมีโอกาส **0.01%** และบอสที่กำหนด `boss: true` มีโอกาส **0.025%** ทั้งสองอัตราเป็นค่าคงที่
 
-เปิด [พรีวิวแอนิเมชัน](preview.html) จากไอคอนเล่นบนแถบเมนูเกมเพื่อดูตัวละคร, NPC และมอนสเตอร์จากชุดคอนเซ็ปต์ใหม่ เลือกท่าแล้วปรับความเร็ว เลื่อนเวลา หรือดูทีละเฟรมได้ รายการนักดาบมือเดียวใช้สไปรต์และท่าถือดาบจากเกม ส่วนตัวละครชุดคอนเซ็ปต์ใช้ภาพมุมเดียวเพื่อทดลองจังหวะและเอฟเฟกต์
+เปิด [พรีวิวแอนิเมชัน](preview.html) จากไอคอนเล่นบนแถบเมนูเกมเพื่อดูตัวละครและ NPC ที่ใช้ในเกม รวมถึงมอนสเตอร์และบอสตามแผนที่ หน้า Preview อ่านชื่อ เลเวล สเตตัส และเงื่อนไขสกิลจากตัวเกม เลือกท่าแล้วปรับความเร็ว เลื่อนเวลา หรือดูทีละเฟรมได้
+
+กด **เล่น** เพื่อฟังเสียงประกอบท่าโจมตีและสกิล ไอคอนลำโพงใช้เปิดหรือปิดเสียง และ Preview ใช้ระดับเสียงเอฟเฟกต์เดียวกับตัวเกม
 
 เมื่อเพิ่มมอนสเตอร์ บอส หรือนักรบคลาสใหม่ ให้เพิ่มตัวละครและท่าของตัวละครนั้นใน Animation Preview ตาม [กติกาของโปรเจกต์](AGENTS.md)
 
@@ -52,7 +60,7 @@
 
 กด **Auto** เพื่อค้นหามอนสเตอร์และเดินเข้าระยะโจมตี ปุ่มตั้งค่าข้าง Auto ใช้เลือกระยะค้นหาใกล้ กลาง หรือไกล และกำหนดเปอร์เซ็นต์ใช้ยาสมุนไพรกับน้ำอบมนตราจากกระเป๋าแยกกัน ค่าเริ่มต้นคือ HP 50% และมานา 40% ใช้ไอเทมเมื่อค่าต่ำกว่าเปอร์เซ็นต์ที่ตั้งไว้ และตั้ง 0% เพื่อปิดการใช้ไอเทมชนิดนั้น การสั่งเดินเองจะปิด Auto
 
-ในหน้าตั้งค่า **Auto** เลือกสกิล Active ที่เปิดใช้งานแล้วจากดรอปดาวน์ **Skill 1–5** ตามลำดับที่ต้องการให้ Auto ลองใช้ ช่องที่เว้นว่างจะถูกข้าม ระบบจะใช้สกิลที่ปลดล็อกและพร้อมใช้ตามระยะ มานา และคูลดาวน์ รักษาใจทำงานเมื่อ HP ต่ำกว่า 60% กันภัยทำงานเมื่อมีศัตรูเข้าประชิด และฟันสกัดเมื่อเป้าหมายง้างโจมตีหรือเป็นหุ่นในลานฝึก ถ้าไม่มีสกิลที่ใช้ได้ ระบบจะโจมตีปกติ
+ในหน้าตั้งค่า **Auto** เลือกสกิล Active ที่เปิดใช้งานแล้วจากดรอปดาวน์ **Skill 1–5** ตามลำดับที่ต้องการให้ Auto ลองใช้ ช่องที่เว้นว่างจะถูกข้าม ระบบลองใช้สกิลที่พร้อมและอยู่ในระยะก่อน ถ้าสกิลโจมตีที่พร้อมใช้ต้องเข้าใกล้กว่าระยะโจมตีปกติ Auto จะเดินต่อจนถึงระยะสกิล ถ้าสกิลพักคูลดาวน์หรือมานาไม่พอ ระบบใช้ระยะโจมตีปกติ รักษาใจทำงานเมื่อ HP ต่ำกว่า 60% กันภัยตรวจระยะโจมตีของศัตรูและพื้นที่อันตราย และฟันสกัดทำงานเมื่อเป้าหมายง้างโจมตีหรือเป็นหุ่นในลานฝึก
 
 นักดาบฝึกหัดถือดาบมือขวาขณะยืน เดิน และโจมตี เมื่อถึง Base Lv. 10 ให้กด **V** เปิดกระเป๋าแล้วสวมดาบสำริด
 
@@ -68,7 +76,7 @@
 
 ฟันสกัดขัดจังหวะและทำให้มอนสเตอร์เดินกับโจมตีช้าลง 30% นาน 4 วินาที เมื่อเปิด Passive โจมตีติดเลือด การโจมตีโดนมีโอกาส 20% ทำให้เลือดไหล 3 วินาที ดาเมจต่อครั้งเท่ากับ 15% ของดาเมจที่ทำได้ การติดซ้ำจะเริ่มนับเวลาใหม่
 
-การโจมตีปกติและสกิลโจมตีของนักรบใช้ไฟล์ `assets/audio/sword sound.wav` เมื่อปะทะ ทั้งแบบกดเองและ Auto เสียงคริติคอลเล่นพร้อมตัวเลขสีทอง เสียงเริ่มหลังคลิกหรือกดปุ่มในเกม กด **Esc** หรือปุ่มตั้งค่าถัดจากปุ่มเต็มจอเพื่อปรับคุณภาพภาพ ความสว่าง ระดับเสียง และเปิดหรือปิดเสียงโจมตีและสกิล การตั้งค่าจะบันทึกในเบราว์เซอร์
+การโจมตีปกติและสกิลโจมตีของนักรบใช้ไฟล์ `assets/audio/sword sound.wav` เมื่อปะทะ ทั้งแบบกดเองและ Auto เสียงคริติคอลเล่นพร้อมตัวเลขสีทอง เสียงดาบเล่นซ้อนได้สูงสุด 3 เสียงและคริติคอล 6 เสียง ผีเปรตมีเสียงทุบดิน และชาละวันมีเสียงฟาดน้ำในจังหวะกระทบ เสียงเริ่มหลังคลิกหรือกดปุ่มในเกม กด **Esc** หรือปุ่มตั้งค่าถัดจากปุ่มเต็มจอเพื่อปรับคุณภาพภาพ ความสว่าง ระดับเสียง และเปิดหรือปิดเสียงโจมตีและสกิล การตั้งค่าจะบันทึกในเบราว์เซอร์
 
 ในหน้าสถานะ **B** กด **+** เพื่อจัดแต้มและ **−** เพื่อคืนแต้มที่กำลังจัด จากนั้นกด **ยืนยัน** เพื่อบันทึก
 
@@ -98,10 +106,22 @@
 
 - `assets/tha-kham-harbor.png` ฉากท่าเรือท่าข้าม สร้างด้วย ImageGen แบบในตัว
 - `assets/nipa-landing.png` ฉากจุดขึ้นลงเรือป่าจากน้ำกร่อย สร้างด้วย ImageGen แบบในตัว
+- `assets/cobra.png` สไปรต์งูเห่าจาก ImageGen แบบในตัว ช่องละ 96 × 96 พิกเซล จุดยึด (48, 86) เรียงแถวแผ่แม่เบี้ย เลื้อย และฉก
+- `assets/cobra-queen.png` สไปรต์นางพญางูเห่า 9 เฟรม ช่องละ 128 × 128 พิกเซล จุดยึด (64, 116)
+- `assets/venom-pool.png` สไปรต์บ่อพิษ 6 เฟรม ช่องละ 192 × 96 พิกเซล ทั้งสองแผ่นสร้างด้วย ImageGen แบบในตัว
 - `assets/nipa-return-sign.png` ป้ายไม้เรือกลับท่าข้าม สร้างด้วย ImageGen แบบในตัว
+- `assets/harbor-npcs.png` สไปรต์ชิด แม่บัว และพ่อค้าเพิ่มจาก ImageGen แบบในตัว ช่องละ 96 × 96 พิกเซล จุดยึดเท้า (48, 86)
 - `assets/chalawan-boss.png` สไปรต์ชาละวันพื้นโปร่งใส สร้างด้วย ImageGen แบบในตัว
 - `assets/effects/chalawan-tail-sweep/sheet.png` เอฟเฟกต์คลื่นน้ำฟาดหาง 8 เฟรม เรียงซ้ายไปขวาในตาราง 4 คอลัมน์ 2 แถว
+- `assets/monkey-attack.png` และ `assets/forest-spirit-attack.png` แอ็กชันตะปบของลิงป่าและฟาดพลังป่าของนางไม้จาก ImageGen แบบในตัว แผ่นละ 4 เฟรม ช่อง 96 × 96 พิกเซล จุดยึด (48, 86)
 - `assets/harbor-crate.png`, `assets/pret-ash.png`, `assets/river-lord-armor.png`, `assets/chalawan-card.png` ภาพหีบ ไอคอนเถ้า เกราะ และการ์ด
+
+<details>
+<summary>พรอมป์ต้นฉบับสำหรับชาวบ้านท่าเรือ (ImageGen)</summary>
+
+> Use case: stylized-concept. Original Ayothaya Survival RPG NPC sprite atlas. ONE horizontal row of exactly three isolated separate full-body chibi Thai townspeople of equal height, on genuine transparent alpha. Equal-width cells, each figure centered in its cell with generous gutters; all three feet on a perfectly shared baseline. LEFT male dock villager with dusty indigo work wrap and a short length of coiled rope. CENTER female villager with muted green sabai shawl, rust woven skirt and one small wicker basket. RIGHT male merchant in saffron-brown cloth with muted red shoulder wrap and a little coin pouch, friendly middle aged. Old Ayutthaya riverside market clothes. All three face nearly forward, slight three-quarter top-down view, standing relaxed and readable at 58px high. Classic crunchy 32-bit hand-clustered pixel art sprites, dark warm brown contour, chunky heads, short legs, simplified fabric folds. Warm skin and sunlight. No ground shadow, floor, text, borders, UI, backdrop or additional objects between figures. Bodies never overlap. Wide landscape canvas.
+
+</details>
 
 <details>
 <summary>พรอมป์ ImageGen ของเอฟเฟกต์และไอเทมชาละวัน</summary>
@@ -125,6 +145,31 @@
 **การ์ดชาละวัน**
 
 > Use case: stylized-concept. Asset type: one isolated original collectible RPG inventory card icon for Ayothaya Survival. A mostly upright worn rectangular teal-and-antique-gold card with small Thai lotus filigree corners and the portrait of a snarling huge golden-eyed olive Siamese crocodile with its long snout pointing right. Crocodile teeth and crimson droplet motif inset into the card border near bottom. Warm hard-edged 32-bit pixel art, high contrast, legible at 44px. Square canvas with one object centered and closely framed, transparent alpha outside card, tiny margin. No type, words, watermark, playing card numbers, extra objects or ground.
+
+</details>
+
+<details>
+<summary>พรอมป์สไปรต์งูเห่า</summary>
+
+> Original Ayothaya Survival monster sprite atlas, Thai fantasy pixel RPG. Match the shipped sprite sheet and player art references for sharply grouped pixel shading, deep brown 1-pixel silhouettes, moderate overhead three-quarter view and warm upper-left light. Draw the SAME Siamese monocled cobra facing screen left in all nine images. Dark moss-olive back, amber beige throat scales, ochre rims on flared hood, a round pale marking suggested on rear hood, readable black eyes. EXACTLY 3 columns × 3 rows: equal square cells with generous transparent gutters. Row 1 idle with loosely coiled body and raised open hood, three subtle variations swaying in place. Row 2 slither with head low, three different clearly offset S curves of the trailing body at fixed scale. Row 3 strike: wind-up raised hood with head held back; fast forward bite toward the left with jaws opening and tail still grounded; head pulls back and closes its jaws. The cobra is roughly 45–55 logical pixels tall when upright, formed by few clean pixel clusters and NO blur, in a 96px cell. Lock same body size, isometric angle and ground plane across all cells. Anchor at center of grounded body; strike can extend left from this anchor without overlapping any cell. Genuine transparent alpha, no background, shadows, text, grid marks, particles, or props. Square composition.
+
+</details>
+
+<details>
+<summary>พรอมป์ท่าโจมตีลิงป่าและนางไม้</summary>
+
+> Transparent single-row four-frame attack sprite strip for Ayothaya Survival. ORIGINAL small wild macaque monster, match existing monkey in the bottom row third cell of the referenced sprite atlas: chestnut warm brown coat, tan face with eye rims, pale belly, curled tail, big friendly dark eyes, same body size and outline. Same animal facing screen LEFT in each pose, same scale and fixed slightly top-down three-quarter game view, upper-left warm light, grouped hard-edged pixel shading. Exactly four perfectly separated columns with equal cell spacing, genuine transparent alpha. Four poses left-to-right: 1 crouches onto hindlegs visibly low with shoulder drawing back; 2 raises one distinct front paw above and slightly behind the ear, threatening, free paw planted in front, coiled tail; 3 swings that paw forward low toward screen left, stretched silhouette, feet still anchored; 4 compact recovery drawing paw back. No glow, ground, lettering, attack streak, or scenery. Distinct silhouettes; classic pixel sprite with animal about 43 logical pixels tall in a 96 pixel cell. A common grounded body pivot throughout, equal visual pixel density. Landscape 4:1 if possible.
+
+> Transparent single-row four-frame attack sprite strip for Ayothaya Survival. ORIGINAL Thai forest spirit woman same design as rightmost lower-row figure of supplied sprite atlas: jade teal skin and draped pointed leaf textiles, dark teal leafy Thai chada-like updo, tapered ghostly skirt and long narrow arms, soft ivory eye glint. Keep the shipped cyan-teal color family and distinct humanoid silhouette. Same woman faces screen LEFT in each pose, fixed mildly overhead three-quarter RPG camera, upper-left directional light, crisp grouped pixel shading, compact sprite 64 logical pixels tall in a 96 pixel cell. Exactly four separate frames left to right, equal spacing and fully transparent background. 1 gathers both hands toward chest, tilted toward target; 2 lifts one arm diagonally up to shoulder height, other arm drawn in, with tiny mint magic glint in raised palm; 3 thrusts hand sharply LEFT, a small closed mint flash only at fingertips, rooted ghost-tail pivot; 4 lowers arm and relaxes. Same grounded pivot of ghost skirt, same size, cell margins and pixel density. No scenery, text, border, ambient aura, shadows, or unrelated figures. Landscape 4:1 if possible.
+
+</details>
+
+<details>
+<summary>พรอมป์สไปรต์นางพญางูเห่าและบ่อพิษ</summary>
+
+> Create a transparent 3-by-3 atlas for the queen cobra boss in Ayothaya Survival, original Thai pixel fantasy, following the supplied regular cobra atlas pose layout and game pixel style. Identical view and three identical objects across each row except poses: this is the SAME powerful giant female king cobra monster. Dark charcoal and jade Malay scales, aged muted gold hood rim and pale gold twin eye markings, angular wide hood, ember amber eyes, elegant small antique Siam gold diadem attached to brow. Thick coiling serpent only. All nine poses face screen LEFT in same three-quarter view with upper-left lighting and bold hard outline. Exactly THREE columns THREE rows, equal 1:1 cells; generous fully transparent gutters. Row 1 raised hood subtle idle variants. Row 2 three low sinuous slither poses with same diadem and body coloration. Row 3 raised wind-up, opened mouth with two clear fangs reaching LEFT with grounded rear coil, pullback recovery. No particles, projectiles, border, background, captions, or cast shadow. Maintain the grounded rear body volume and ground contact across frames. Matte hand-placed 32-bit pixel clusters and no blur. Square image.
+
+> Create one transparent effect atlas in 3 columns by 2 rows, exactly six isolated same-size-cell animation frames, Ayothaya Survival warm Thai isometric 32-bit pixel art. Single magic green venom puddle projected onto the ground as a wide flat ellipse, seen from three-quarter above. Lush acid lime highlights, dark forest green liquid, jade edges, sharp luminous pixel clusters only. Keep broad uneven circular outline, same ground pivot and horizontal scale; about 2.5x as wide as high. First frame fresh green venom splashing and spreading from center, second peak impact outward broken ring with small splashes, frames three through six show same fully open pool with bubbles and clustered poisoned ripples travelling across it, low height. Readable dark rim and varied highlights over a burnt orange dirt map; small green bubbles stay close to the pool. Uniform grid with very wide genuine transparent alpha gutters, no shadows, letters, character, ground, ground warning ring or panels. Landscape 3:2 overall, frames row-major.
 
 </details>
 
@@ -188,6 +233,7 @@
 - `assets/village-npcs.png` เป็น atlas สไปรต์ลุงขาม แม่ค้าสมุนไพร และยามประตูท่า เรียงจากซ้ายไปขวา ใช้ช่อง 96 × 96 พิกเซลและจุดยึดเท้าที่ (48, 86) เช่นเดียวกับพรานหม่อง
 - `assets/inventory-leather.png` เป็นพื้นหนังกระเป๋าขอบทองเหลืองจาก ImageGen
 - `assets/town-scroll.png` เป็นไอคอนคัมภีร์กลับเมืองโปร่งใสจาก ImageGen ใช้ร่วมกันในช่องลัด กระเป๋า และร้าน NPC
+- `assets/ghost-key.png` เป็นไอคอนกุญแจผีพื้นโปร่งใสขนาด 160 × 160 พิกเซลจาก ImageGen แบบในตัว
 - `assets/inventory-icons.png` เป็นแผงไอคอนไอเทมพิกเซลอาร์ต 5 × 2 ช่องจาก ImageGen
 - `assets/red-vortex.png` เป็นพื้นผิววังวนแดงโปร่งใสจาก ImageGen หมุนอยู่ในช่องประตูที่พร้อมวาร์ปในเกม
 
@@ -195,6 +241,13 @@
 <summary>พรอมป์ต้นฉบับสำหรับคัมภีร์กลับเมือง (ImageGen)</summary>
 
 > Use case: stylized-concept. Generate exactly one original transparent item icon for Ayothaya Survival, a Thai Ayutthaya fantasy pixel RPG. Square image, isolated, centered, 12% clear alpha padding each side. A warm aged parchment teleport scroll, diagonally tilted from lower left to upper right, loosely rolled ends capped with antique bronze, a short deep teal ribbon and small crimson wax seal near the base. The exposed center has a bold small turquoise portal ring with pale inner glint and a single gold spark, readable as a travel item at 32 pixels; it has NO text, rune lettering, labels, frames, background, UI, hands, or extra objects. Crisp dark umber outer silhouette, compact hand-placed pixel clusters, an amber paper body with at most 4 distinct tone bands, restrained gold highlights, no smooth illustration shading. Make it look like a 48x48 classic inventory sprite upscaled by nearest neighbor. Preserve genuine transparent alpha. Use a near-frontal three-quarter view and balanced diagonal; strong clear shape at handheld game UI size.
+
+</details>
+
+<details>
+<summary>พรอมป์ต้นฉบับสำหรับกุญแจผี (ImageGen)</summary>
+
+> Use case: stylized-concept. Create one isolated square inventory icon for Ayothaya Survival, a classic Thai fantasy pixel-art RPG. Ghost Key from a haunted Ayutthaya ruin: one antique tarnished bronze warded key. A skull-shaped bow with two dark eye sockets and tiny violet pinpoints, a small Siamese lotus engraving at the neck, a sturdy worn shaft and two unmistakable blocky key teeth. Set on a diagonal, big skull in the upper-left, key teeth in the lower-right. Antique-gold rim light, warm bronze midtones, deep plum shadows, and one very short lavender wisp tucked against the skull. Crisp hand-clustered 32-bit RPG pixel art, stepped edges, deep outline; bold silhouette legible at 36 pixels on a warm caramel brown inventory slot. Single object, centered close crop with modest even padding, genuine transparent alpha outside the silhouette. No slot, plate, lettering, ground, cast shadow, detached particles, or surrounding fog.
 
 </details>
 

@@ -17,6 +17,8 @@
   const itemSlotNames = ["ช่องบน", "ช่องล่าง"];
   const itemImages = {
     town_scroll: "town-scroll",
+    ghost_key: "ghost-key",
+    recruit_badge: "recruit-badge",
     river_lord_armor: "river-lord-armor",
     chalawan_card: "chalawan-card",
     pret_ash: "pret-ash",
@@ -56,7 +58,7 @@
   let connected = false;
   let peers = [];
   let portraitTime = 0;
-  let lastRender = 0;
+  const frameClock = window.AyothayaGame.createFrameClock();
   let skillTab = "active";
   let selectedSlot = 1;
   let activeDrag = null;
@@ -98,13 +100,30 @@
   const interfaceIcon = (name) => '<svg class="icon" aria-hidden="true"><use href="#i-' + name + '"></use></svg>';
   const skillArtwork = (id) => '<svg class="skill-art" aria-hidden="true"><use href="#i-skill-' + id + '"></use></svg>';
 
+  function questNavigation() {
+    const quest = state.trackedQuest;
+    if (quest === state.nipaQuest && state.zone === "harbor" && quest.status !== "completed") {
+      const ferry = state.interactables.find(entity => entity.type === "ferry");
+      return ferry && { entity: ferry, label: "ไปจุดขึ้นเรือ" };
+    }
+    const label = questActionLabels[quest.status];
+    if (!label || state.zone === "training") return null;
+    const owner = state.npcs.find(npc => npc.id === quest.npcId);
+    return owner && { entity: owner, label };
+  }
+
+  function questObjective(quest) {
+    return quest === state.nipaQuest && state.zone === "harbor" && quest.status !== "completed" ?
+      "ขึ้นเรือตรงศาลาไปป่าจากน้ำกร่อย" : quest.objective;
+  }
+
   function renderHUD() {
     const { player, trackedQuest: quest, zoneInfo } = state;
     const training = zoneInfo.id === "training";
     const cooldowns = game.skillCooldownsEnabled();
     const manaCosts = game.skillManaCostsEnabled();
     setHidden("training-controls", !training);
-    setHidden("quest-widget", training || zoneInfo.id === "nipa");
+    setHidden("quest-widget", training);
     if (training) {
       for (const [id, enabled] of [["training-cooldown", cooldowns], ["training-mana", manaCosts]]) {
         const button = $(id);
@@ -121,9 +140,11 @@
     text("quest-title", quest.title);
     const questStatus = quest.loot === "challenge" ? "fight" : quest.status;
     const multiGoalProgress = quest.goals && quest.status === "active";
-    text("quest-objective", multiGoalProgress ? game.questProgress(quest) : quest.objective);
-    const questAction = questActionLabels[quest.status];
-    const questOwner = quest.npcId ?? "";
+    const showGoals = multiGoalProgress && !(quest === state.nipaQuest && state.zone === "harbor");
+    text("quest-objective", showGoals ? game.questProgress(quest) : questObjective(quest));
+    const navigation = questNavigation();
+    const questAction = navigation?.label;
+    const questOwner = navigation?.entity.id ?? "";
     const respawnSeconds = quest.respawnAt ? Math.max(0, Math.ceil((quest.respawnAt - Date.now()) / 1000)) : null;
     text("quest-count", respawnSeconds !== null ? respawnSeconds + " วิ." :
       questAction ?? (questStatus === "completed" ? "ส่งแล้ว" : questStatus === "fight" ? "บอส" :
@@ -132,14 +153,14 @@
       questTracker.dataset.status = questStatus;
       questTracker.dataset.owner = questOwner;
       questTracker.dataset.action = questAction ? "quest-owner" : "quests";
-      const owner = state.npcs.find(npc => npc.id === quest.npcId);
-      const detail = questAction && owner ? questAction + " · เดินไปหา" + owner.name : "เปิดสมุดภารกิจ";
+      const detail = navigation ? questAction + " · เดินไปที่ " + navigation.entity.name : "เปิดสมุดภารกิจ";
       questTracker.setAttribute("aria-label", detail);
       questTracker.title = detail;
     }
     text("player-name", player.name || "นักเดินทาง");
     text("player-job", player.job || "ดาบอโยธยา");
     setHidden("player-bleed", !player.bleed);
+    setHidden("player-poison", !player.poison);
     text("base-level", fmt(player.level));
     text("job-level", fmt(player.jobLevel));
     text("hp-text", fmt(player.hp) + " / " + fmt(player.maxHp));
@@ -399,29 +420,48 @@
       '<button type="submit" class="bag-discard-confirm"' + (max === 0 ? ' disabled' : '') + '>ยืนยันการทิ้ง</button></div></form>';
   }
 
+  function questGoals(quest, showProgress) {
+    const { monsters } = window.AyothayaGame.reference;
+    const rows = Object.entries(quest.goals).map(([id, needed]) => {
+      const count = quest.counts[id];
+      const quantity = showProgress ? fmt(count) + ' / ' + fmt(needed) : fmt(needed) + ' ตัว';
+      return '<li><span>' + escape(monsters[id].name) + '</span><strong' +
+        (showProgress && count === needed ? ' class="quest-goal-complete"' : '') +
+        '>' + quantity + '</strong></li>';
+    }).join("");
+    return '<section class="quest-goals"><h4>เป้าหมาย</h4><ul>' + rows + '</ul></section>';
+  }
+
   function questRewards(quest, received) {
     const { item, gold, xp, jobXp, unlock } = quest.rewards;
-    const rewards = unlock ? [[interfaceIcon("quest"), unlock]] : [
-      [itemArtwork(item), state.items[item].name + " ×1"],
-      [interfaceIcon("coin"), fmt(gold) + " เบี้ย"],
-      [interfaceIcon("star"), fmt(xp) + " Base EXP"],
-      [interfaceIcon("quest"), fmt(jobXp) + " Job EXP"],
+    const artwork = item ? itemArtwork(item) : interfaceIcon("quest");
+    const name = item ? state.items[item].name : unlock;
+    const primary = '<li class="quest-reward-primary"><span class="quest-reward-icon">' + artwork +
+      '</span><strong>' + escape(name) + '</strong>' +
+      (item ? '<span class="quest-reward-quantity">×1</span>' : '') + '</li>';
+    const metrics = unlock ? [] : [
+      ...(gold ? [["coin", "เบี้ย", gold]] : []), ["star", "Base EXP", xp], ["quest", "Job EXP", jobXp],
     ];
-    return '<section class="quest-reward-list"><h3>' + (received ? 'รางวัลที่ได้รับ' : 'รางวัลภารกิจ') +
-      '</h3><ul>' + rewards.map(([icon, label]) => '<li>' + icon + '<span>' + escape(label) +
-      '</span></li>').join("") + '</ul></section>';
+    return '<section class="quest-reward-list"><h4>' + (received ? 'รางวัลที่ได้รับ' : 'รางวัลภารกิจ') +
+      '</h4><ul>' + primary + metrics.map(([icon, label, value]) =>
+        '<li class="quest-reward-metric">' + interfaceIcon(icon) + '<span><strong>' + fmt(value) +
+        '</strong> ' + label + '</span></li>').join("") + '</ul></section>';
   }
 
   function npcDialogue() {
-    const { quest, questView, text: line } = dialogue;
+    const { npc, quest, questView, text: line } = dialogue;
+    const role = npc.role ? '<p class="quest-role">' + escape(npc.role) + '</p>' : '';
     const body = '<p>' + escape(line) + '</p>';
-    if (!questView) return body;
+    if (!questView) return role + body;
     if (questView === "challenge") return '<h3>ท้าชาละวัน</h3>' + body +
       '<div class="dialog-actions"><button type="button" data-action="harbor-challenge">ท้าชาละวัน</button></div>';
-    return '<h3>' + escape(quest.title) + '</h3>' + body + questRewards(quest, questView === "reward") +
+    const showGoals = quest.goals && (questView === "offer" || questView === "progress");
+    return '<div class="quest-panel"><div class="quest-intro">' + role + '<h3>' + escape(quest.title) + '</h3>' +
+      body + '</div>' + (showGoals ? questGoals(quest, questView === "progress") : '') +
+      questRewards(quest, questView === "reward") +
       (questView === "offer" ? '<div class="dialog-actions quest-offer-actions">' +
         '<button type="button" data-action="close">ไม่รับภารกิจ</button>' +
-        '<button type="button" data-action="accept-quest">รับภารกิจ</button></div>' : "");
+        '<button type="button" data-action="accept-quest">รับภารกิจ</button></div>' : "") + '</div>';
   }
 
   function ferryPanel() {
@@ -632,6 +672,7 @@
     bagContext.hidden = true;
     clearDrag();
     const quest = state.trackedQuest;
+    const navigation = panel === "quests" ? questNavigation() : null;
     const titles = { inventory: "กระเป๋าสัมภาระ", equipment: "สวมใส่", quests: "บันทึกภารกิจ", character: "สถานะตัวละคร", help: "วิธีเล่น", settings: "ตั้งค่า",
       "auto-settings": "ตั้งค่าการเล่นอัตโนมัติ", skills: "สกิล", "reset-levels": "รีเซ็ตเลเวล", "reset-character": "เริ่มตัวละครใหม่",
       "discard-item": "ทิ้งไอเทม", ferry: "เรือข้ามฟาก",
@@ -650,12 +691,14 @@
         '<button type="button" data-action="confirm-reset-character">เริ่มใหม่</button></div>',
       skills: skillBook,
       "auto-settings": autoSettings,
-      quests: () => "<h3>" + escape(quest.title) + "</h3><p>" + escape(quest.description) +
-        '</p><p class="panel-summary">' + escape(quest.objective) +
-        (quest.status === "active" ? " · " + escape(game.questProgress(quest)) : "") + "</p>" +
+      quests: () => '<div class="quest-panel"><div class="quest-intro"><h3>' + escape(quest.title) + '</h3>' +
+        (quest.goals ? '' : '<p>' + escape(quest.description) + '</p>') +
+        '<p class="panel-summary">' + escape(questObjective(quest)) +
+        (!quest.goals && quest.status === "active" ? " · " + escape(game.questProgress(quest)) : "") + '</p></div>' +
+        (quest.goals && quest.status !== "completed" ? questGoals(quest, quest.status !== "available") : "") +
         (quest.rewards ? questRewards(quest, quest.status === "completed") : "") +
-        (state.zone !== "training" && questActionLabels[quest.status] ? '<div class="dialog-actions"><button type="button" data-action="quest-owner">' +
-          questActionLabels[quest.status] + '</button></div>' : ""),
+        (navigation ? '<div class="dialog-actions"><button type="button" data-action="quest-owner">' +
+          escape(navigation.label) + '</button></div>' : "") + '</div>',
       help: () => '<dl class="key-list"><dt>คลิกพื้น / WASD</dt><dd>เดินและสำรวจ</dd>' +
         '<dt>คลิกศัตรู / Space</dt><dd>เข้าประชิดและโจมตีต่อเนื่อง</dd>' +
         '<dt>1–5 · K</dt><dd>ใช้สกิล · เปิดหน้าต่างสกิล</dd><dt>F</dt><dd>คุยหรือเข้าเขตใกล้ตัว</dd>' +
@@ -836,12 +879,14 @@
         if (id === "minimap" && displaySettings.minimap) world.drawMinimap(minimap, state);
         saveDisplaySettings();
         return;
-      case "quest-owner":
-        if (!questActionLabels[state.trackedQuest.status]) return;
+      case "quest-owner": {
+        const navigation = questNavigation();
+        if (!navigation) return;
         if (dialog.open) dialog.close();
-        game.interact(state.trackedQuest.npcId);
+        game.interact(navigation.entity.id);
         renderHUD();
         return;
+      }
       case "accept-quest":
       case "harbor-challenge":
         if (action === "accept-quest" ? game.acceptQuest() : game.startHarborChallenge()) {
@@ -1131,7 +1176,10 @@
   document.addEventListener("keyup", (event) => keys.delete(event.code));
   window.addEventListener("blur", () => { keys.clear(); clearDrag(); });
   window.addEventListener("pagehide", () => game.save());
-  document.addEventListener("visibilitychange", () => { if (document.hidden) game.save(); });
+  document.addEventListener("visibilitychange", () => {
+    frameClock.reset();
+    if (document.hidden) game.save();
+  });
 
   const effects = document.createElement("div");
   effects.className = "world-effects";
@@ -1143,7 +1191,7 @@
   }
 
   game.subscribe((event) => {
-    skillAudio?.play(event);
+    skillAudio?.play(event, game.time);
     if (dialog.open && ((event.type === "level" && (panel === "skills" || panel === "character")) || (event.type === "quest" && panel === "quests"))) {
       const { action, id } = document.activeElement.dataset;
       renderPanel();
@@ -1158,17 +1206,18 @@
       ferryOffer = event;
       openPanel("ferry");
     } else if (event.type === "skill" || event.type === "skill-strike") {
-      world.playSkillEffect(event);
+      world.playSkillEffect(event, game.time);
     } else if (event.type === "damage" && world.screenPoint) {
-      world.playSkillEffect(event);
+      world.playSkillEffect(event, game.time);
       const label = document.createElement("span");
       const critical = event.enemy && event.critical === true;
-      const kind = event.status === "bleed" ? " bleed" : critical ? " critical" : event.enemy ? "" : " hurt";
+      const poison = event.status === "poison";
+      const kind = poison ? " poison" : event.status === "bleed" ? " bleed" : critical ? " critical" : event.enemy ? "" : " hurt";
       label.className = "damage-number" + kind + (event.stunTime > 0 ? " stun" : "");
-      label.textContent = fmt(event.value) + (event.stunTime > 0 ? " · สตัน" : "");
+      label.textContent = fmt(event.value) + (poison ? " · พิษ" : event.stunTime > 0 ? " · สตัน" : "");
       effects.append(label);
-      const lift = event.skill === "interrupt" ? 48 : 0;
-      hits.push({ x: event.x, y: event.y, label, critical, lift, start: performance.now() });
+      const lift = poison ? 18 : event.skill === "interrupt" ? 48 : 0;
+      hits.push({ x: event.x, y: event.y, label, critical, lift, start: game.time });
     } else if (event.type === "zone") {
       world.resetCamera();
       world.clearSkillEffects();
@@ -1179,17 +1228,19 @@
   });
 
   function animate(now) {
+    requestAnimationFrame(animate);
+    if (document.hidden) return;
     scrollEquipmentDrag();
-    const dt = Math.min(0.05, Math.max(0, (now - (lastRender || now)) / 1000));
-    lastRender = now;
     const x = Number(keys.has("KeyD") || keys.has("ArrowRight")) - Number(keys.has("KeyA") || keys.has("ArrowLeft"));
     const y = Number(keys.has("KeyS") || keys.has("ArrowDown")) - Number(keys.has("KeyW") || keys.has("ArrowUp"));
-    game.update(dt, world.relativeAxis?.(x, y) ?? { x, y }, dialog.open || document.hidden);
+    const axis = world.relativeAxis?.(x, y) ?? { x, y };
+    frameClock.advance(now, dt => game.update(dt, axis, dialog.open));
+    const time = game.time;
     state.remotePlayers = peers.filter((peer) => peer.zone === state.zone);
-    world.draw(state, now / 1000);
+    world.draw(state, time);
     for (let index = hits.length - 1; index >= 0; index -= 1) {
       const effect = hits[index];
-      const progress = (now - effect.start) / (effect.critical ? 840 : 680);
+      const progress = (time - effect.start) / (effect.critical ? .84 : .68);
       if (progress > 1) {
         effect.label.remove();
         hits.splice(index, 1);
@@ -1206,7 +1257,6 @@
       renderHUD();
       portraitTime = now;
     }
-    requestAnimationFrame(animate);
   }
 
   function openLanPresence() {

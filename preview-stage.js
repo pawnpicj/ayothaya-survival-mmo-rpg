@@ -117,9 +117,8 @@
     };
   }
 
-  function identifyMotion(motion, traits) {
+  function identifyMotion(motion) {
     const id = motion?.id ?? 'idle';
-    if (traits.rock && id === 'attack') return 'slam';
     return aliases[id] ?? id;
   }
 
@@ -499,12 +498,11 @@
       ctx.restore();
     }
 
-    function drawContactPreview(record, actor, skill, elapsed, width, height, groundY, zoom, palette) {
+    function drawContactPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette) {
+      const { id: skill, attackDuration: swingDuration, contactAt: impactTime } = motion;
       const interrupt = skill === 'interrupt';
       const unit = Math.min(height / 160, width / 240) * zoom;
       const playerX = width / 2 - 22 * unit;
-      const swingDuration = interrupt ? .36 : (heavy?.previewSwingDuration ?? .46);
-      const impactTime = swingDuration * window.AyothayaGame.strikePhase;
       const approach = interrupt ? 9 * (1 - clamp(elapsed / impactTime, 0, 1)) : 0;
       const targetX = width / 2 + (19 + approach) * unit;
       const progress = elapsed < swingDuration ? elapsed / swingDuration : null;
@@ -525,14 +523,14 @@
       sprite?.drawImpact(ctx, sinceHit, targetX, groundY - 23 * unit, unit);
     }
 
-    function drawSweepPreview(record, actor, elapsed, width, height, groundY, zoom, palette) {
+    function drawSweepPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette) {
       const unit = Math.min(Math.min(height / 170, width / 220) * zoom, height / 125, width / 170);
       const x = width / 2;
       const y = groundY - 15 * unit;
       const centerY = y - 23 * unit;
-      const swingDuration = .43;
+      const { attackDuration: swingDuration, contactAt } = motion;
       const progress = elapsed < swingDuration ? elapsed / swingDuration : null;
-      const sinceHit = elapsed - swingDuration * window.AyothayaGame.strikePhase;
+      const sinceHit = elapsed - contactAt;
       const targets = [
         { x: x + 38 * unit, y: y - 34 * unit, direction: 1 },
         { x: x - 54 * unit, y: y + 4 * unit, direction: -1 },
@@ -556,10 +554,10 @@
       for (const target of targets) heavyEffect?.drawImpact(ctx, sinceHit, target.x, target.y - 23 * unit, unit * .78);
     }
 
-    function drawGuardPreview(record, actor, elapsed, width, height, groundY, zoom, palette) {
+    function drawGuardPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette) {
       const unit = Math.min(height / 160, width / 220) * zoom;
       const x = width / 2 - 23 * unit;
-      const sinceHit = elapsed - .56;
+      const sinceHit = elapsed - motion.contactAt;
       const rush = Math.max(0, 1 - Math.abs(sinceHit) / .19);
       const recoil = sinceHit >= 0 && sinceHit < .16 ? Math.sin(Math.PI * sinceHit / .16) : 0;
       const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
@@ -590,15 +588,15 @@
       ctx.restore();
     }
 
-    function drawPiercingPreview(record, actor, skill, elapsed, width, height, groundY, zoom, palette) {
+    function drawPiercingPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette) {
+      const { id: skill, attackDuration: duration, contactAt } = motion;
       const dash = skill === 'dash';
       const sprite = piercingEffects[skill];
       const unit = Math.min(Math.min(height / 166, width / 225) * zoom, height / 124, width / 200);
       const startX = width / 2 - (dash ? 66 : 29) * unit;
       const targetX = width / 2 + 28 * unit;
       const arrivalX = dash ? targetX + window.AyothayaGame.dashOvershoot * unit : startX;
-      const duration = dash ? .42 : .36;
-      const sinceHit = elapsed - duration * window.AyothayaGame.strikePhase;
+      const sinceHit = elapsed - contactAt;
       const progress = elapsed < duration ? elapsed / duration : null;
       const playerX = sinceHit >= 0 ? arrivalX : startX;
       const drawPlayer = record.drawPlayer ??= window.AyothayaPlayerSprite.create(record.image);
@@ -682,12 +680,11 @@
       const project = (dx, dy) => [x + dx * .7 * unit, y + dy * .39 * unit];
       const artWidth = 129 * unit;
       const artHeight = artWidth * actor.rect[3] / actor.rect[2];
-      const progress = clamp(elapsed / (slam.windup + slam.recovery), 0, 1);
-      const tilt = reducedMotion.matches ? 0 : Math.sin(progress * TAU) * .19;
+      const { tilt, stretchX, stretchY } = chalawanEffect.sweepPose(slam, elapsed, false, reducedMotion.matches);
       chalawanSweepEffect.ground(ctx, project, slam, elapsed, reducedMotion.matches);
       paintShadow(ctx, x, y, artWidth, artHeight, 0, palette, 'idle', 0);
       paintActor(ctx, record.image, actor, { x, y, width: artWidth, height: artHeight,
-        pose: [0, 0, tilt, 1, 1, 1], type: 'idle', phase: 0, traits: actorTraits(actor) });
+        pose: [0, 0, tilt, stretchX, stretchY, 1], type: 'idle', phase: 0, traits: actorTraits(actor) });
       chalawanSweepEffect.foreground(ctx, project, slam, elapsed, reducedMotion.matches);
     }
 
@@ -709,6 +706,25 @@
       paintBackdrop(ctx, width, height, palette, groundY);
       if (!actor) return;
 
+      const art = window.AyothayaPreviewData;
+      const wildAttack = art.wildAttacks[motion.id];
+      if (wildAttack) {
+        const attack = load(wildAttack.src);
+        if (attack.state !== 'ready') return;
+        const size = Math.round(Math.min(height * .84, width * .62) * zoom);
+        const x = width / 2, y = groundY;
+        if (elapsed < wildAttack.windup) {
+          art.drawAttackBoundary(ctx, (dx, dy) => [x + dx * size / 103, y + dy * size / 216],
+            wildAttack.radius, elapsed / wildAttack.windup, wildAttack);
+        }
+        paintShadow(ctx, x, y, size * .38, size * .65, 0, palette, 'idle', 0);
+        ctx.save();
+        ctx.translate(x, y);
+        art.drawWildAttack(ctx, attack.image, size, wildAttack, elapsed, false);
+        ctx.restore();
+        return;
+      }
+
       const record = load(actor.src);
       if (record.state !== 'ready') {
         ctx.fillStyle = palette.ink;
@@ -718,16 +734,42 @@
         return;
       }
 
+      if (actor.id === 'cobra' || actor.id === 'cobra-queen') {
+        const casting = motion.id === 'venom-pool';
+        const size = Math.round(Math.min(height * .85, width * .65) * zoom);
+        const x = width * (casting ? .65 : .5);
+        const y = casting ? height * .70 : groundY;
+        const targetX = width * .35;
+        const targetY = height * .76;
+        const { windup, recovery } = window.AyothayaGame.cobraQueen.venom;
+        if (casting) {
+          const pool = load(art.venomAtlas.src);
+          const rx = Math.min(width * .16, height * .33);
+          art.drawVenomPool(ctx, pool.image, targetX, targetY, rx, rx * .39, elapsed - windup, reducedMotion.matches);
+        }
+        paintShadow(ctx, x, y, size * .45, size * .55, 0, palette, 'idle', 0);
+        const poseId = casting && elapsed >= windup + recovery ? 'cobra-idle' : motion.id;
+        art.drawCobra(ctx, record.image, x, y, size, poseId, elapsed, false, actor);
+        if (casting) art.drawVenomSpit(ctx, x - size * .36, y - size * .54, targetX, targetY, elapsed);
+        return;
+      }
+      if (actor.id === 'rabbit') {
+        const scale = Math.min(height / 130, width / 155) * zoom;
+        const phase = motion.id === 'rabbit-hop' ? (elapsed / motion.duration) % 1 : 0;
+        paintShadow(ctx, width / 2, groundY, 32 * scale, 38 * scale, 0, palette, 'idle', 0);
+        window.AyothayaPreviewData.drawRabbit(ctx, record.image, width / 2, groundY, scale, phase);
+        return;
+      }
       if (actor.weapon && (motion?.id === 'heavy' || motion?.id === 'interrupt')) {
-        drawContactPreview(record, actor, motion.id, elapsed, width, height, groundY, zoom, palette);
+        drawContactPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette);
         return;
       }
       if (motion?.id === 'sweep' && actor.weapon) {
-        drawSweepPreview(record, actor, elapsed, width, height, groundY, zoom, palette);
+        drawSweepPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette);
         return;
       }
       if (motion?.id === 'guard-skill' && actor.weapon) {
-        drawGuardPreview(record, actor, elapsed, width, height, groundY, zoom, palette);
+        drawGuardPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette);
         return;
       }
       if (motion?.id === 'heal' && actor.weapon) {
@@ -735,7 +777,7 @@
         return;
       }
       if (actor.weapon && (motion?.id === 'dash' || motion?.id === 'thrust')) {
-        drawPiercingPreview(record, actor, motion.id, elapsed, width, height, groundY, zoom, palette);
+        drawPiercingPreview(record, actor, motion, elapsed, width, height, groundY, zoom, palette);
         return;
       }
       if (motion?.id === 'pret-slam' && pretSlamEffect) {
@@ -750,8 +792,9 @@
       const traits = actorTraits(actor);
       const phase = clamp((elapsed || 0) / (motion?.duration || 1), 0, 1);
       const collapse = motion?.id === 'chalawan-fall' ? chalawanEffect?.collapsePose(phase) : null;
-      const type = collapse ? 'idle' : identifyMotion(motion, traits);
-      const pose = collapse ? [0, 0, collapse.tilt, collapse.stretchX, collapse.stretchY, 1] : poseFor(type, phase, traits);
+      const type = collapse ? 'idle' : identifyMotion(motion);
+      const pose = actor.still ? [0, 0, 0, 1, 1, 1] :
+        collapse ? [0, 0, collapse.tilt, collapse.stretchX, collapse.stretchY, 1] : poseFor(type, phase, traits);
       const [, , artWidth, artHeight] = actor.rect;
       const frame = fitActor(actor, pose, artWidth / artHeight, type, width, height, groundY, zoom);
       const { x, y, width: imageWidth, height: imageHeight } = frame;

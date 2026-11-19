@@ -1,12 +1,14 @@
 (() => {
   "use strict";
 
-  const { actors, motions } = window.AyothayaPreviewData;
+  const { actors, motions, motionForActor } = window.AyothayaPreviewData;
   const byId = (id) => document.getElementById(id);
   const catalog = byId("actor-list");
   const animationList = byId("animation-list");
   const timeline = byId("timeline");
   const play = byId("play-toggle");
+  const soundToggle = byId("sound-toggle");
+  const sound = window.AyothayaSkillAudio.create();
   const speedControl = byId("playback-speed");
   const zoomControl = byId("zoom");
   const groupButtons = [...document.querySelectorAll("[data-group]")];
@@ -16,17 +18,23 @@
   const effectStarts = { heavy: .225, sweep: .26, "guard-skill": .62, heal: .30, dash: .24, thrust: .22,
     interrupt: .22, "pret-slam": pretSlam.windup + .13,
     "chalawan-entrance": chalawan.entranceDuration / 2, "tail-sweep": chalawan.slam.windup + .1,
-    "chalawan-fall": chalawan.collapseDuration * .72 };
+    "chalawan-fall": chalawan.collapseDuration * .72,
+    "venom-pool": window.AyothayaGame.cobraQueen.venom.windup + .3,
+    "monkey-swipe": window.AyothayaGame.enemyAttackTells.monkey.windup * .7,
+    "spirit-swipe": window.AyothayaGame.enemyAttackTells.spirit.windup * .7 };
   const stepSize = () => Object.hasOwn(effectStarts, motion.id) ? 1 / 60 : 1 / 24;
   const timeString = (value) => value.toFixed(2) + " วิ";
   const timelineMax = Number(timeline.max);
 
   const requestedEffect = location.hash === "#guard" ? "guard-skill" : location.hash.slice(1);
   const showEffect = Object.hasOwn(effectStarts, requestedEffect);
-  let actor = (showEffect && actors.find(person => person.motions.includes(requestedEffect))) || actors[0];
+  let actor = (showEffect && actors.find(person => person.motions.includes(requestedEffect))) ||
+    actors.find(person => person.id === requestedEffect) || actors[0];
   let group = actor.group;
-  let motion = motions[showEffect ? requestedEffect : actor.motions[0]];
+  let motion = motionForActor(actor, showEffect ? requestedEffect : actor.motions[0]);
   let elapsed = showEffect ? effectStarts[requestedEffect] : 0;
+  let stillFromLink = showEffect;
+  let audioStarted = false;
   let playing = !showEffect && !reduceMotion.matches;
   let speed = Number(speedControl.value) || 1;
   let zoom = Number(zoomControl?.value) || 1;
@@ -112,9 +120,13 @@
     for (const button of catalog.querySelectorAll("[data-actor]")) mark(button, button.dataset.actor === actor.id);
     text("actor-name", actor.name);
     text("actor-role", actor.role);
+    text("actor-stats", actor.stats ?? "");
+    byId("actor-stats").hidden = !actor.stats;
     byId("preview-canvas").setAttribute("aria-label", actor.name + " · " + motion.name);
     text("animation-name", motion.name);
     text("animation-description", motion.description);
+    text("animation-stats", motion.stats ?? "");
+    byId("animation-stats").hidden = !motion.stats;
     text("duration-readout", timeString(motion.duration));
   }
 
@@ -133,12 +145,31 @@
     text("play-label", label);
   }
 
+  function renderSound() {
+    soundToggle.disabled = !sound.supported;
+    mark(soundToggle, sound.enabled);
+    soundToggle.title = sound.enabled ? "ปิดเสียง Preview" : "เปิดเสียง Preview";
+    soundToggle.querySelector("use").setAttribute("href", sound.enabled ? "#pv-speaker" : "#pv-muted");
+  }
+
+  function playCues(from, to) {
+    if (!audioStarted || !sound.enabled) return;
+    for (const { at, event } of motion.sounds ?? []) {
+      if (at > from && at <= to) sound.play(event);
+    }
+  }
+
   function draw(now) {
     frame = null;
     if (playing && previousTick !== null) {
+      const from = elapsed;
       elapsed += Math.min(0.1, Math.max(0, now - previousTick) / 1000) * speed;
+      playCues(from, Math.min(elapsed, motion.duration));
       if (elapsed >= motion.duration) {
-        if (motion.loop) elapsed %= motion.duration;
+        if (motion.loop) {
+          elapsed %= motion.duration;
+          playCues(-1, elapsed);
+        }
         else {
           elapsed = motion.duration;
           playing = false;
@@ -159,18 +190,24 @@
   function setPlaying(next) {
     playing = next;
     previousTick = null;
+    if (playing) {
+      audioStarted = true;
+      sound.unlock();
+      if (elapsed === 0) playCues(-1, 0);
+    }
     renderPlaying();
     requestDraw();
   }
 
   function resetTimeline(startPlaying) {
+    stillFromLink = false;
     elapsed = 0;
     setPlaying(startPlaying);
   }
 
   function selectActor(person) {
     actor = person;
-    motion = motions[actor.motions.includes(motion.id) ? motion.id : actor.motions[0]];
+    motion = motionForActor(actor, actor.motions.includes(motion.id) ? motion.id : actor.motions[0]);
     renderMotions();
     renderSelection();
     resetTimeline(playing);
@@ -188,20 +225,21 @@
 
   function selectMotion(id) {
     if (!actor.motions.includes(id)) return;
-    motion = motions[id];
+    motion = motionForActor(actor, id);
     for (const button of animationList.querySelectorAll("[data-animation]")) mark(button, button.dataset.animation === id);
     renderSelection();
     resetTimeline(!reduceMotion.matches || playing);
   }
 
   function seek(seconds) {
+    stillFromLink = false;
     elapsed = Math.max(0, Math.min(seconds, motion.duration));
     setPlaying(false);
   }
 
   function togglePlaying() {
     if (playing) setPlaying(false);
-    else if (elapsed >= motion.duration) resetTimeline(true);
+    else if (stillFromLink || elapsed >= motion.duration) resetTimeline(true);
     else setPlaying(true);
   }
 
@@ -218,6 +256,10 @@
     if (id) selectMotion(id);
   });
   play.addEventListener("click", togglePlaying);
+  soundToggle.addEventListener("click", () => {
+    sound.setEnabled(!sound.enabled);
+    renderSound();
+  });
   byId("replay").addEventListener("click", () => resetTimeline(true));
   byId("step-back").addEventListener("click", () => seek(elapsed - stepSize()));
   byId("step-next").addEventListener("click", () => seek(elapsed + stepSize()));
@@ -258,6 +300,7 @@
   renderMotions();
   renderSelection();
   renderPlaying();
+  renderSound();
   renderTime();
   requestDraw();
 })();

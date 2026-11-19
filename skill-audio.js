@@ -5,10 +5,10 @@
   const preferenceKey = "ayothaya-skill-sound";
   const volumeKey = "ayothaya-sound-volume";
   const samples = {
-    sword: "sword sound.wav",
-    monster: "animal melee sound.wav",
-    critical: "critical__strike4.wav",
-    recovery: "heal-rpg.wav",
+    sword: { file: "sword sound.wav", voices: 3 },
+    monster: { file: "animal melee sound.wav" },
+    critical: { file: "critical__strike4.wav", voices: 6 },
+    recovery: { file: "heal-rpg.wav" },
   };
   // Each voice is [waveform, start Hz, end Hz, duration, gain, delay].
   const starts = {
@@ -39,11 +39,19 @@
     ["sine", 820, 782, .19, .13],
     ["noise", 1920, 880, .07, .13],
   ];
-  const bossSlam = [
-    ["triangle", 96, 39, .26, .27],
-    ["noise", 690, 148, .24, .30],
-    ["sine", 143, 51, .24, .14, .026],
-  ];
+  const bossImpacts = {
+    "pret-slam": [
+      ["triangle", 96, 39, .26, .27],
+      ["noise", 690, 148, .24, .30],
+      ["sine", 143, 51, .24, .14, .026],
+    ],
+    "tail-sweep": [
+      ["noise", 2100, 520, .27, .25],
+      ["noise", 3200, 960, .17, .13, .045],
+      ["sine", 780, 350, .12, .055, .085],
+      ["sine", 1020, 570, .085, .04, .16],
+    ],
+  };
   function create() {
     const AudioContext = window.AudioContext ?? window.webkitAudioContext;
     let enabled = true;
@@ -56,13 +64,14 @@
       }
     } catch {}
     const clips = {};
+    function makeClip(cue) {
+      const clip = new window.Audio("assets/audio/" + encodeURIComponent(samples[cue].file));
+      clip.preload = "auto";
+      clip.volume = volume;
+      return clip;
+    }
     if (window.Audio) {
-      for (const [cue, filename] of Object.entries(samples)) {
-        const clip = new window.Audio("assets/audio/" + encodeURIComponent(filename));
-        clip.preload = "auto";
-        clip.volume = volume;
-        clips[cue] = clip;
-      }
+      for (const cue of Object.keys(samples)) clips[cue] = [makeClip(cue)];
     }
     let context;
     let master;
@@ -136,7 +145,21 @@
       for (const voice of voices) playVoice(voice, start);
     }
 
-    function play(event) {
+    function playSample(cue) {
+      const pool = clips[cue];
+      if (!pool) return;
+      const limit = samples[cue].voices;
+      let clip = limit ? pool.find(voice => voice.paused || voice.ended) : pool[0];
+      if (!clip && pool.length < limit) {
+        clip = makeClip(cue);
+        pool.push(clip);
+      }
+      if (!clip) return;
+      clip.currentTime = 0;
+      clip.play().catch(() => {});
+    }
+
+    function play(event, time = performance.now() / 1000) {
       if (!enabled || document.hidden) return;
       let cue;
       let voices;
@@ -147,26 +170,23 @@
         if (event.contact) cue = "sword";
         else voices = miss;
       } else if (event.type === "boss-slam") {
-        voices = bossSlam;
+        voices = bossImpacts[event.style];
+      } else if (event.type === "venom-splash") {
+        voices = [["noise", 1750, 480, .22, .17], ["sine", 205, 72, .15, .13], ["triangle", 540, 270, .10, .055, .09]];
       } else if (event.type === "damage") {
         if (event.enemy && event.critical === true) {
           // One accent covers critical hits that land together, such as a sweep.
-          const now = performance.now();
-          if (now - lastCritical < 60) return;
-          lastCritical = now;
+          if (time - lastCritical < .06) return;
+          lastCritical = time;
           cue = "critical";
         } else if (event.enemy && event.skill === null) {
           cue = "sword";
-        } else if (event.enemy === false && event.status !== "bleed") {
-          cue = "monster";
+        } else if (event.enemy === false && event.status !== "bleed" && event.status !== "poison") {
+          if (!event.area) cue = "monster";
           if (event.guarded) voices = blocked;
         }
       }
-      const clip = clips[cue];
-      if (clip) {
-        clip.currentTime = 0;
-        clip.play().catch(() => {});
-      }
+      playSample(cue);
       if (voices) playVoices(voices);
     }
 
@@ -177,7 +197,7 @@
     function setVolume(value) {
       if (!Number.isFinite(value)) return;
       volume = Math.max(0, Math.min(1, value));
-      for (const clip of Object.values(clips)) clip.volume = volume;
+      for (const clip of Object.values(clips).flat()) clip.volume = volume;
       updateGain();
       try { localStorage.setItem(volumeKey, String(volume)); } catch {}
     }
@@ -188,7 +208,7 @@
       if (enabled) unlock();
       else {
         pending = null;
-        for (const clip of Object.values(clips)) clip.pause();
+        for (const clip of Object.values(clips).flat()) clip.pause();
       }
       try { localStorage.setItem(preferenceKey, enabled ? "on" : "off"); } catch {}
     }

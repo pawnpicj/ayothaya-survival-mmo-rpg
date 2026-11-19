@@ -733,8 +733,6 @@
       drawPlayerSprite=window.AyothayaPlayerSprite.create(atlas);
     },{once:true});
     atlas.src='assets/sprites.png';
-    const rangerSprite=new Image();
-    rangerSprite.src='assets/ruins-ranger.png';
     const dummySprite=new Image();
     dummySprite.src='assets/training-dummy.png';
     const pretSprite=new Image();
@@ -745,15 +743,25 @@
     harborCrateSprite.src='assets/harbor-crate.png';
     const nipaSignSprite=new Image();
     nipaSignSprite.src='assets/nipa-return-sign.png';
-    const villageNpcSheet=new Image();
-    villageNpcSheet.src='assets/village-npcs.png';
-    const npcSprites={
-      elder:{image:villageNpcSheet,column:0},
-      vendor:{image:villageNpcSheet,column:1},
-      guard:{image:villageNpcSheet,column:2},
-      'harbor-master':{image:villageNpcSheet,column:2},
-      'ruins-guard':{image:rangerSprite,column:0}
-    };
+    const rabbitSprite=new Image();
+    rabbitSprite.src=window.AyothayaPreviewData.rabbit.src;
+    const cobraSprite=new Image();
+    cobraSprite.src=window.AyothayaPreviewData.cobra.src;
+    const cobraQueenSprite=new Image();
+    cobraQueenSprite.src=window.AyothayaPreviewData.queen.src;
+    const venomPoolSprite=new Image();
+    venomPoolSprite.src=window.AyothayaPreviewData.venomAtlas.src;
+    const wildAttackSprites=new Map(Object.values(window.AyothayaPreviewData.wildAttacks).map(attack=>{
+      const image=new Image();
+      image.src=attack.src;
+      return [attack.id,image];
+    }));
+    const { npcArt }=window.AyothayaPreviewData;
+    const npcSheets=new Map([...new Set(Object.values(npcArt).map(art=>art.src))].map(src=>{
+      const image=new Image();
+      image.src=src;
+      return [src,image];
+    }));
     let guardianSprite=null;
     const guardianArt=window.AyothayaPreviewData?.actors.find(actor=>actor.id==='stone-guardian');
     if(guardianArt) {
@@ -855,7 +863,7 @@
     }
 
     function updateCamera(player,time,newZone) {
-      const dt=clamp(time-lastTime,.001,.045);
+      const dt=Math.max(0,time-lastTime);
       const factor=1-Math.exp(-dt*7);
       camera.x=newZone?player.x:camera.x+(player.x-camera.x)*factor;
       camera.y=newZone?player.y:camera.y+(player.y-camera.y)*factor;
@@ -1081,22 +1089,22 @@
     }
 
     function drawNipaReturnSign(entity,x,y,scale){
-      const width=60;
+      const width=84;
       const height=width*nipaSignSprite.naturalHeight/nipaSignSprite.naturalWidth;
       const top=-height*.96;
       const letteringY=top+height*.44;
-      shadow(x+3*scale,y,23*scale,3*scale,'rgba(61,32,15,.30)');
+      shadow(x+3*scale,y,width*.43*scale,4*scale,'rgba(61,32,15,.30)');
       ctx.save();
       ctx.translate(Math.round(x),Math.round(y));
       ctx.scale(scale,scale);
       ctx.imageSmoothingEnabled=false;
       ctx.drawImage(nipaSignSprite,-width/2,top,width,height);
-      ctx.font='700 9px "Leelawadee UI", Tahoma, sans-serif';
+      ctx.font='700 12px "Leelawadee UI", Tahoma, sans-serif';
       ctx.textAlign='center';
       ctx.textBaseline='middle';
       ctx.fillStyle='#f5d5a2';
       ctx.strokeStyle='#4f2b19';
-      ctx.lineWidth=1.4;
+      ctx.lineWidth=2;
       ctx.strokeText(entity.signText,0,letteringY,width*.72);
       ctx.fillText(entity.signText,0,letteringY,width*.72);
       ctx.restore();
@@ -1167,6 +1175,8 @@
       const action=actor.action||'idle';
       const dead=action==='death';
       const attack=action==='attack';
+      const attackSprite=attack?wildAttackSprites.get(actor.attackTell?.id):null;
+      const hasAttackSprite=Boolean(attackSprite?.naturalWidth);
       const slam=attack && actor.attackStyle==='pret-slam' ? actor.slam : null;
       const dir=(attack&&actor.attackDir)||actor.dir||'s';
       const cast=action==='cast';
@@ -1184,7 +1194,9 @@
       const atlasEntry=spritesheet[type==='player'?pose:type];
       const baseHeight=actor.boss ? 1.92 : kind==='enemy'?(type==='guardian'||type==='dummy'?.9:type==='tamarind'||type==='monkey'?.5:.66):.77;
       const crocodile=type==='chalawan';
-      const heightOnScreen=crocodile ? chalawanDrawHeight(spriteSize*2.19) : spriteSize*baseHeight;
+      const queen=type==='cobra_queen';
+      const cobra=type==='cobra'||queen;
+      const heightOnScreen=crocodile ? chalawanDrawHeight(spriteSize*2.19) : spriteSize*(queen?1.42:baseHeight);
       const radius=spriteSize*(crocodile ? 1.03 : actor.boss ? .53 : type==='guardian'?.46:type==='dummy'?.37:kind==='enemy'?.29:.255);
       if (state.targetId===actor.id&&kind==='enemy'&&!dead) {
         const t=(Math.cos(time*6)+1)*.5;
@@ -1197,7 +1209,7 @@
       }
       shadow(sx,sy,Math.max(7,radius*.84),Math.max(2,4*scale));
       if (kind === 'player' && !dead && actor.guardTime > 0) drawGuard(actor, time, unit);
-      const bounce=dead||slam||type==='dummy'?0:attack?Math.max(0,swing)*unit*(kind==='enemy'?7:3)
+      const bounce=dead||slam||cobra||hasAttackSprite||type==='dummy'?0:attack?Math.max(0,swing)*unit*(kind==='enemy'?7:3)
         :walking?Math.abs(Math.sin(phase))*2.8*scale:Math.sin(time*2.8+actor.x)*scale*.95;
       ctx.save();
       ctx.translate(Math.round(sx),Math.round(sy-bounce));
@@ -1217,28 +1229,41 @@
         const {stretchX,stretchY}=pretSlamEffect.pose(slam,slam.windup+slam.recovery-actor.actionTime);
         ctx.scale(stretchX,stretchY);
       }
-      else if(crocodile && attack && actor.attackStyle==='tail-sweep'){
-        ctx.rotate(Math.sin(progress*TAU)*.19*(dx<0?-1:1));
-        ctx.scale(1+swing*.1,1-swing*.08);
+      else if(crocodile && attack && actor.attackStyle==='tail-sweep' && chalawanEffect){
+        const elapsed=actor.actionDuration-actor.actionTime;
+        const { tilt, stretchX, stretchY }=chalawanEffect.sweepPose(actor.slam,elapsed,dx<0,reducedMotion.matches);
+        ctx.rotate(tilt);
+        ctx.scale(stretchX,stretchY);
       }
-      else if(attack){
+      else if(attack&&!cobra&&!hasAttackSprite){
         const lunge=swing*unit*(actor.attackStyle==='heavy'?12:8);
         ctx.translate(Math.cos(bearing)*lunge,Math.sin(bearing)*lunge);
         ctx.rotate(Math.cos(bearing)*swing*.28);
         ctx.scale(1+swing*.085,1-swing*.06);
       }
-      else if(walking){ctx.rotate(Math.sin(phase*.5)*.031);}
+      else if(walking&&!cobra){ctx.rotate(Math.sin(phase*.5)*.031);}
       if(kind==='remote') ctx.filter='hue-rotate(63deg) saturate(.91)';
       if(action==='hit') ctx.filter='brightness(1.36) saturate(.74)';
       const armedPlayer=type==='player'&&drawPlayerSprite;
-      const npc=kind==='npc'?npcSprites[actor.id]:null;
+      const npc=kind==='npc'?npcArt[actor.id]:null;
+      const npcImage=npc && npcSheets.get(npc.src);
       if(armedPlayer) {
         drawPlayerSprite(ctx, actor, { dir, bearing, walking: walking && !dead, phase, progress: attack ? progress : null,
           size: spriteSize, heavyEffect, piercingEffect: piercingEffects[actor.attackStyle] });
-      } else if(npc?.image.complete && npc.image.naturalWidth>=(npc.column+1)*96 && npc.image.naturalHeight===96) {
+      } else if(npcImage?.naturalWidth) {
         const size=Math.round(spriteSize);
         ctx.imageSmoothingEnabled=false;
-        ctx.drawImage(npc.image,npc.column*96,0,96,96,-Math.round(size/2),-Math.round(86*size/96),size,size);
+        ctx.drawImage(npcImage,...npc.rect,-Math.round(npc.anchor[0]*size),-Math.round(npc.anchor[1]*size),size,size);
+      } else if(hasAttackSprite) {
+        window.AyothayaPreviewData.drawWildAttack(ctx,attackSprite,Math.round(spriteSize),actor.attackTell,
+          actor.actionDuration-actor.actionTime,dx>0);
+      } else if(cobra && (queen?cobraQueenSprite:cobraSprite).naturalWidth) {
+        const bite=queen?(actor.attackStyle==='venom-pool'?'venom-pool':'queen-bite'):'cobra-strike';
+        const motion=attack?bite:walking?'cobra-slither':'cobra-idle';
+        const elapsed=attack?actor.actionDuration-actor.actionTime:time+(actor.origin?.x??0)*.013;
+        const art=window.AyothayaPreviewData;
+        art.drawCobra(ctx,queen?cobraQueenSprite:cobraSprite,0,0,Math.round(spriteSize*(queen?1.82:1)),
+          motion,elapsed,dx>0,queen?art.queen:art.cobra);
       } else if(type==='dummy' && dummySprite.complete && dummySprite.naturalWidth) {
         const h=Math.round(heightOnScreen);
         const w=Math.round(h*dummySprite.naturalWidth/dummySprite.naturalHeight);
@@ -1276,7 +1301,7 @@
         ctx.drawImage(sprites.get(key),-w/2,-h,w,h);
       }
       ctx.restore();
-      if(attack&&!slam&&!armedPlayer&&!crocodile) drawSlash(sx,sy-heightOnScreen*.49,bearing,progress,unit,kind,actor.attackStyle);
+      if(attack&&!slam&&!armedPlayer&&!crocodile&&!cobra&&!hasAttackSprite) drawSlash(sx,sy-heightOnScreen*.49,bearing,progress,unit,kind,actor.attackStyle);
       if(cast&&!dead&&kind!=='player'){
         ctx.strokeStyle='#c9eccb';
         ctx.lineWidth=1;
@@ -1295,12 +1320,15 @@
         if (kind !== 'enemy' || actor.boss || type === 'dummy' || state.targetId === actor.id || nearPlayer) {
           label(title,sx,nameY,actor.boss?'boss':kind,clamp(scale,.76,1.10));
         }
-        const quest=state.trackedQuest;
-        const challengeAvailable=quest?.status==='completed'&&quest.loot==='unclaimed';
-        if(kind==='npc'&&actor.id===quest?.npcId&&(['available','ready'].includes(quest.status)||challengeAvailable)){
-          const markerScale=clamp(scale,.85,1.8);
-          const bob=reducedMotion.matches?0:Math.sin(time*3.5)*2*markerScale;
-          drawQuestMarker(sx,nameY-16*markerScale+bob,markerScale,quest.status==='ready');
+        if(kind==='npc'){
+          const {harborQuest,trackedQuest:quest}=state;
+          const challengeAvailable=actor.id===harborQuest.npcId&&harborQuest.status==='completed'&&harborQuest.loot==='unclaimed';
+          const questAvailable=actor.id===quest?.npcId&&['available','ready'].includes(quest.status);
+          if(questAvailable||challengeAvailable){
+            const markerScale=clamp(scale,.85,1.8);
+            const bob=reducedMotion.matches?0:Math.sin(time*3.5)*2*markerScale;
+            drawQuestMarker(sx,nameY-16*markerScale+bob,markerScale,questAvailable&&quest.status==='ready');
+          }
         }
         if(kind==='enemy'&&actor.hp<actor.maxHp&&actor.hp>0){
           ctx.fillStyle='#382c28';ctx.fillRect(sx-12*scale,sy+5*scale,24*scale,3*scale);
@@ -1362,7 +1390,7 @@
       ctx.restore();
     }
 
-    function playSkillEffect(event) {
+    function playSkillEffect(event, start) {
       const skill = event.status === 'bleed' ? 'bleed' : event.guarded ? 'guard' : event.skill;
       const visual = skillEffects[skill];
       if (!visual) return;
@@ -1389,8 +1417,7 @@
         : interruptStrike ? interrupt.impactDuration
         : spriteImpact ? window.AyothayaHeavyEffect.impactDuration
         : charge ? event.windup : event.type === 'damage' ? .30 : visual.duration;
-      activeEffects.push({ ...event, skill, colors: visual.colors, charge, sweepTrail, spriteImpact, guardImpact, healBloom, piercingStrike, duration,
-        start: performance.now() / 1000 });
+      activeEffects.push({ ...event, skill, colors: visual.colors, charge, sweepTrail, spriteImpact, guardImpact, healBloom, piercingStrike, duration, start });
     }
 
     function effectRing(x, y, radius, angle, span, colors, unit) {
@@ -1425,6 +1452,16 @@
       const elapsed=slam.windup+slam.recovery-actionTime;
       const projectSweep=(dx,dy)=>project(x+dx,y+dy);
       chalawanSweepEffect?.[foreground?'foreground':'ground'](ctx, projectSweep, slam, elapsed, reducedMotion.matches);
+    }
+
+    function drawVenomGround(point, elapsed) {
+      const { radius } = window.AyothayaGame.cobraQueen.venom;
+      const [x,y]=project(point.x,point.y);
+      const [eastX,eastY]=project(point.x+radius,point.y);
+      const [southX,southY]=project(point.x,point.y+radius);
+      const rx=Math.hypot(eastX-x,eastY-y);
+      const ry=Math.hypot(southX-x,southY-y);
+      window.AyothayaPreviewData.drawVenomPool(ctx,venomPoolSprite,x,y,rx,ry,elapsed,reducedMotion.matches);
     }
 
     function glow(point, radius, color) {
@@ -1806,6 +1843,7 @@
       };
       hitAreas=[];
       if(zone) for(const object of zone.objects) add(object,'scenery');
+      for(const animal of state.wildlife) add(animal,'wildlife');
       const arriving=state.enemies?.find(enemy=>enemy.entrance);
       for(const mob of state.enemies||[]) if(mob.visible!==false && !mob.entrance) add(mob,'enemy');
       for(const npc of state.npcs||[]) add(npc,'npc');
@@ -1817,11 +1855,30 @@
       const models=zone?createModels(ctx,project,camera.yaw):null;
       const slamming=entries.find(({entity})=>entity.action==='attack' && entity.attackStyle==='pret-slam')?.entity;
       const sweeping=entries.find(({entity})=>entity.action==='attack' && entity.attackStyle==='tail-sweep')?.entity;
+      const preparing=entries.filter(({kind,entity})=>kind==='enemy' && entity.action==='attack' && entity.attackTell &&
+        entity.actionDuration-entity.actionTime+1e-9<entity.attackTell.windup);
+      const spitting=state.enemies?.find(enemy=>enemy.action==='attack' && enemy.attackStyle==='venom-pool' &&
+        enemy.actionTime>enemy.slam.recovery);
       if(slamming) drawPretSlam(slamming);
       if(sweeping) drawChalawanSweep(sweeping);
+      if(state.venomPool) drawVenomGround(state.venomPool,state.venomPool.elapsed);
+      if(spitting) drawVenomGround(spitting.venomTarget,spitting.slam.recovery-spitting.actionTime);
+      const art=window.AyothayaPreviewData;
+      for(const {entity} of preparing){
+        const { attackTell, actionDuration, actionTime }=entity;
+        art.drawAttackBoundary(ctx,(dx,dy)=>project(entity.x+dx,entity.y+dy),attackTell.radius,
+          (actionDuration-actionTime)/attackTell.windup,art.wildAttacks[attackTell.id]);
+      }
       drawSkillEffects(state.player, time, true);
       for(const {entity,kind,x,y} of entries){
-        if(kind==='interactable') drawHarborInteractable(entity,x,y,state,time);
+        if(kind==='wildlife' && entity.type==='rabbit'){
+          if(rabbitSprite.naturalWidth){
+            const scale=(sceneMode?scene.h/510:clamp(zoom,.6,2.4))*64/96;
+            const phase=reducedMotion.matches?0:entity.phase;
+            shadow(x,y,12*scale,3*scale);
+            window.AyothayaPreviewData.drawRabbit(ctx,rabbitSprite,x,y,scale,phase,entity.facingRight);
+          }
+        } else if(kind==='interactable') drawHarborInteractable(entity,x,y,state,time);
         else if(kind!=='scenery') drawActor(entity,kind,x,y,state,time);
         else if(entity.type==='tree'||entity.type==='shrub') drawTree(entity,x,y);
         else models.place(entity,time);
@@ -1830,6 +1887,15 @@
       drawSkillEffects(state.player, time);
       if(slamming) drawPretSlam(slamming, true);
       if(sweeping) drawChalawanSweep(sweeping,true);
+      if(spitting){
+        const { venomTarget, slam }=spitting;
+        const [x,y]=project(venomTarget.x,venomTarget.y);
+        const [bossX,bossY]=project(spitting.x,spitting.y);
+        const size=sceneMode?scene.h/510:clamp(zoom,.6,2.4);
+        window.AyothayaPreviewData.drawVenomSpit(ctx,bossX+(x>=bossX?1:-1)*20*size,bossY-67*size,x,y,
+          slam.windup+slam.recovery-spitting.actionTime);
+        label('พ่นพิษ',x,y+13,'boss',clamp(zoom,.8,1.1));
+      }
       if(slamming && slamming.actionTime>slamming.slam.recovery){
         const [x,y]=project(slamming.x,slamming.y+slamming.slam.radius*.78);
         label('ทุบพื้น',x,y,'boss',clamp(zoom,.8,1.1));
@@ -1837,6 +1903,10 @@
       if(sweeping && sweeping.actionTime>sweeping.slam.recovery){
         const [x,y]=project(sweeping.x,sweeping.y+sweeping.slam.radius*.78);
         label('ฟาดหาง',x,y,'boss',clamp(zoom,.8,1.1));
+      }
+      for(const {entity} of preparing){
+        const [x,y]=project(entity.x,entity.y+entity.attackTell.radius);
+        label(art.wildAttacks[entity.attackTell.id].name,x,y+13,'enemy',clamp(zoom,.8,1.05));
       }
       embers(time,ruins);
       lastTime=time;

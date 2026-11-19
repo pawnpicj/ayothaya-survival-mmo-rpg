@@ -5,30 +5,20 @@
   const clamp = value => Math.max(0, Math.min(1, value));
 
   function drawWarning(ctx, project, slam, elapsed) {
-    const [x, y] = project(0, 0);
-    const [east] = project(slam.radius, 0);
-    const [, south] = project(0, slam.radius);
-    const rx = Math.abs(east - x), ry = Math.abs(south - y);
-    const warning = elapsed < slam.windup;
-    const progress = warning ? elapsed / slam.windup : (elapsed - slam.windup) / slam.recovery;
-    const start = -Math.PI / 2;
-    const end = start + TAU;
-    const marker = warning ? start + progress * TAU : start;
-    const opacity = ctx.globalAlpha;
-    ctx.save();
-    ctx.globalAlpha = opacity * (warning ? .17 : .14 * (1 - progress));
-    ctx.strokeStyle = '#eab96f';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.ellipse(x, y, rx, ry, 0, marker, end);
-    ctx.stroke();
-    if (warning) {
-      ctx.globalAlpha = opacity * .25;
-      ctx.beginPath();
-      ctx.ellipse(x, y, rx, ry, 0, start, marker);
-      ctx.stroke();
-    }
-    ctx.restore();
+    if (elapsed >= slam.windup) return;
+    window.AyothayaPreviewData.drawAttackBoundary(ctx, project, slam.radius, elapsed / slam.windup, {
+      color: '#fff0ad', fill: 'rgba(224, 100, 39, .18)',
+    });
+  }
+
+  function sweepPose(slam, elapsed, headLeft, still) {
+    if (still) return { tilt: 0, stretchX: 1, stretchY: 1 };
+    const windup = clamp(elapsed / slam.windup);
+    const recovery = clamp((elapsed - slam.windup) / slam.recovery);
+    const coil = windup * windup * (1 - recovery);
+    const snap = Math.sin(recovery * Math.PI);
+    return { tilt: (.13 * coil - .17 * snap) * (headLeft ? -1 : 1),
+      stretchX: 1 - .12 * coil + .10 * snap, stretchY: 1 + .12 * coil - .08 * snap };
   }
 
   function create(requestDraw) {
@@ -124,5 +114,5 @@
       stretchX: 1 + .045 * settle, stretchY: 1 - .39 * settle };
   }
 
-  window.AyothayaChalawanEffect = { create, entrance, collapsePose };
+  window.AyothayaChalawanEffect = { create, entrance, collapsePose, sweepPose };
 })();

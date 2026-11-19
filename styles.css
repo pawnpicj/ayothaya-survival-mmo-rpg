@@ -73,6 +73,7 @@ button:disabled { opacity: .58; cursor: default; }
 .damage-number.hurt, .damage-number.damage-enemy, .damage-number[data-kind="hurt"] { color: #ffac98; }
 .damage-number.stun { color: #f5c6ff; }
 .damage-number.bleed { color: #ff91aa; font-size: 1rem; }
+.damage-number.poison { color: #b8fa81; font-size: 1rem; text-shadow: 0 2px 2px #18200f, 0 0 4px #26321b; }
 .damage-number.critical {
   --critical-burst: polygon(
     0 54%, 14% 43%, 8% 30%, 25% 31%, 21% 13%, 36% 19%, 42% 2%,
@@ -461,6 +462,8 @@ kbd {
 .player-stats > span { font-size: 11px; color: var(--gold); white-space: nowrap; }
 .player-job { font-size: 11px; line-height: 1.35; color: var(--muted); margin-bottom: 5px; }
 .player-bleed { margin-inline-start: 6px; color: #ff9aaf; font-weight: 700; white-space: nowrap; }
+.player-poison { margin-inline-start: 6px; color: #b8fa81; font-weight: 700; white-space: nowrap; }
+.player-poison::before { content: ""; display: inline-block; width: 5px; height: 5px; margin-inline-end: 4px; background: currentColor; transform: rotate(45deg); vertical-align: .15em; }
 .meter {
   position: relative;
   isolation: isolate;
@@ -941,23 +944,70 @@ kbd {
 .dialog-content .bag-discard-confirm { background: #783721; }
 .dialog-content .bag-discard-confirm:enabled:hover { background: #9c4a2b; }
 
-.quest-reward-list ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.quest-panel { display: grid; gap: 15px; }
+.quest-intro h3 { margin: 0 0 5px; color: #fff1c6; font-size: 20px; line-height: 1.35; }
+.quest-intro p { margin: 0; }
+.quest-intro p + p { margin-top: 5px; }
+.quest-role { color: var(--muted); font-size: 12px; }
+.quest-intro .quest-role { margin-bottom: 3px; }
+.quest-panel h4 { margin: 0 0 6px; color: var(--gold-light); font-size: 13px; line-height: 1.4; }
+:is(.quest-goals, .quest-reward-list) ul { margin: 0; padding: 0; list-style: none; }
+.quest-goals ul {
+  border: 1px solid #bb874eaa;
+  border-radius: 6px;
+  background: var(--dialog-surface);
+}
+.quest-goals li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 11px;
+  line-height: 1.45;
+}
+.quest-goals li + li { border-top: 1px solid #bb874e55; }
+.quest-goals strong, .quest-reward-quantity { color: var(--gold-light); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.quest-goals .quest-goal-complete { color: #c7e6ad; }
+.quest-reward-list ul { display: flex; flex-wrap: wrap; gap: 6px; }
 .quest-reward-list li {
   display: flex;
   align-items: center;
-  gap: 7px;
-  min-height: 37px;
-  padding: 3px 7px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  gap: 9px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid #bb874eaa;
+  border-radius: 6px;
   background: var(--dialog-surface);
+  line-height: 1.35;
+}
+.quest-reward-list .quest-reward-primary { flex: 1 1 100%; background: #5b331e; }
+.quest-reward-primary strong { flex: 1; }
+.quest-reward-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 5px;
+  background: #2b160e7d;
+}
+.quest-reward-icon :is(.bag-item-art, .item-image-art) { width: 38px; height: 38px; }
+.quest-reward-list .icon { flex: none; color: var(--gold-light); font-size: 16px; }
+.quest-reward-metric {
+  flex: 1 1 94px;
+  min-height: 36px;
+  color: var(--muted);
   font-size: 12px;
 }
-.quest-reward-list .bag-item-art { width: 27px; flex: 0 0 27px; }
-.quest-reward-list .icon { flex: 0 0 27px; color: var(--gold); font-size: 16px; }
-.quest-offer-actions { justify-content: flex-end; }
+.quest-reward-metric strong { color: #fff1c6; font-size: 14px; font-variant-numeric: tabular-nums; }
+.quest-panel .dialog-actions { margin-top: 0; justify-content: flex-end; }
+.quest-offer-actions button { min-height: 42px; }
 .dialog-content [data-action="accept-quest"] { background: #dfa858; color: #382114; font-weight: 700; }
 .dialog-content [data-action="accept-quest"]:enabled:hover { background: #ffd184; }
+@media (max-width: 420px) {
+  .quest-panel { gap: 12px; }
+  .quest-offer-actions button { flex: 1; }
+}
 
 .character-dialog[open] { width: min(calc(100% - 24px), 620px); max-height: calc(100% - 24px); }
 .character-overview { display: flex; justify-content: space-between; align-items: center; gap: 8px; line-height: 1.35; }

@@ -19,6 +19,7 @@
   <script src="player-sprite.js" defer></script>
   <script src="preview-data.js" defer></script>
   <script src="preview-stage.js" defer></script>
+  <script src="skill-audio.js" defer></script>
   <script src="preview.js" defer></script>
 </head>
 <body>
@@ -33,6 +34,8 @@
     <symbol id="pv-replay" viewBox="0 0 24 24"><path d="M5 9a8 8 0 1 1-1 7M5 3v6h6"/></symbol>
     <symbol id="pv-step-back" viewBox="0 0 24 24"><path d="M18 6 9 12l9 6ZM6 6v12"/></symbol>
     <symbol id="pv-step-next" viewBox="0 0 24 24"><path d="m6 6 9 6-9 6ZM18 6v12"/></symbol>
+    <symbol id="pv-speaker" viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3zM16 9a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12"/></symbol>
+    <symbol id="pv-muted" viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3zM16 9l5 6m0-6-5 6"/></symbol>
     <symbol id="pv-dark" viewBox="0 0 24 24"><path d="M20 15A8.5 8.5 0 0 1 9 4a8.5 8.5 0 1 0 11 11Z"/></symbol>
     <symbol id="pv-light" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/></symbol>
     <symbol id="pv-zoom" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15 15 6 6M7.5 10.5h6m-3-3v6"/></symbol>
@@ -51,7 +54,7 @@
   <main class="page-width preview-page">
     <div class="page-heading">
       <h1 lang="en">Animation Preview</h1>
-      <p class="preview-note">สไปรต์ในเกมและภาพคอนเซ็ปต์ · เลือกท่าเพื่อดูแอนิเมชัน</p>
+      <p class="preview-note">ท่าทางและสเตตัสจากตัวเกม</p>
     </div>
 
     <div class="workbench">
@@ -73,6 +76,7 @@
           <div class="actor-heading">
             <h2 id="actor-name"></h2>
             <span id="actor-role"></span>
+            <span id="actor-stats" hidden></span>
           </div>
           <div class="stage-controls">
             <div class="ground-choices" role="group" aria-label="สีพื้นหลังเวที">
@@ -106,10 +110,13 @@
               <button class="icon-button" id="replay" type="button" aria-label="เล่นใหม่ตั้งแต่ต้น" title="เล่นใหม่ตั้งแต่ต้น"><svg class="icon" aria-hidden="true"><use href="#pv-replay"></use></svg></button>
               <button class="icon-button frame-button" id="step-back" type="button" aria-label="ถอยหนึ่งเฟรม" title="ถอยหนึ่งเฟรม"><svg class="icon" aria-hidden="true"><use href="#pv-step-back"></use></svg></button>
               <button class="icon-button frame-button" id="step-next" type="button" aria-label="ไปข้างหน้าหนึ่งเฟรม" title="ไปข้างหน้าหนึ่งเฟรม"><svg class="icon" aria-hidden="true"><use href="#pv-step-next"></use></svg></button>
+              <button class="icon-button" id="sound-toggle" type="button" aria-label="เสียง Preview" aria-pressed="false" title="เปิดเสียง Preview">
+                <svg class="icon" aria-hidden="true"><use href="#pv-muted"></use></svg>
+              </button>
             </div>
             <div class="scrubber">
               <input type="range" id="timeline" min="0" max="1000" value="0" aria-label="ตำแหน่งในแอนิเมชัน">
-              <output class="time" for="timeline" aria-live="off"><span id="time-readout">0.00</span><span aria-hidden="true"> / </span><span id="duration-readout">0.00</span></output>
+              <output class="time" for="timeline" aria-label="เวลาแอนิเมชันใน Preview" title="เวลาแอนิเมชันใน Preview" aria-live="off"><span id="time-readout">0.00</span><span aria-hidden="true"> / </span><span id="duration-readout">0.00</span></output>
             </div>
             <label class="control-select speed-control"><span>ความเร็ว</span>
               <select id="playback-speed" aria-label="ความเร็ว" title="ความเร็ว">
@@ -129,6 +136,7 @@
             <div class="animation-details">
               <strong id="animation-name"></strong>
               <span id="animation-description"></span>
+              <span id="animation-stats" hidden></span>
             </div>
           </div>
         </div>
